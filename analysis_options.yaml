@@ -1,0 +1,16 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - bricks/**
+    - "**\/__brick__\/**"
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_final_locals: true
+    avoid_print: false
+    public_member_api_docs: false
+    directives_ordering: true
+    sort_pub_dependencies: true

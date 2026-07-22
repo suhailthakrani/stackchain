@@ -1,0 +1,7 @@
+name: widget
+description: Generate a reusable themed Flutter widget.
+vars:
+  name:
+    type: string
+    description: Widget name
+    prompt: Widget name?

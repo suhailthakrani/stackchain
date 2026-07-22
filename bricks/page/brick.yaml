@@ -1,0 +1,7 @@
+name: page
+description: Generate a simple Flutter page/screen.
+vars:
+  name:
+    type: string
+    description: Page name
+    prompt: Page name?

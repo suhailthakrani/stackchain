@@ -1,0 +1,35 @@
+name: stackchain_flutter
+description: >
+  Production Flutter scaffolding you keep using: configure architecture, state
+  (bloc/cubit/riverpod/provider/getx), routing, DI, and networking in
+  stackchain.yaml — then generate features, pages, widgets, and services as you build.
+version: 1.0.0
+homepage: https://github.com/suhailthakrani/stackchain_flutter
+repository: https://github.com/suhailthakrani/stackchain_flutter
+issue_tracker: https://github.com/suhailthakrani/stackchain_flutter/issues
+documentation: https://github.com/suhailthakrani/stackchain_flutter#readme
+topics:
+  - flutter
+  - generator
+  - scaffold
+  - architecture
+  - bloc
+
+environment:
+  sdk: ^3.5.0
+
+executables:
+  stackchain: stackchain
+  init: init
+
+dependencies:
+  ansicolor: ^2.0.3
+  args: ^2.5.0
+  collection: ^1.18.0
+  path: ^1.9.0
+  recase: ^4.1.0
+  yaml: ^3.1.2
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

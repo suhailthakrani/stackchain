@@ -1,0 +1,7 @@
+name: service
+description: Generate a core service stub registered via GetX or GetIt.
+vars:
+  name:
+    type: string
+    description: Service name (e.g. sync)
+    prompt: Service name?

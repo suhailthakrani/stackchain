@@ -1,0 +1,14 @@
+name: feature
+description: Generate a feature module (folders + starter files).
+vars:
+  name:
+    type: string
+    description: Feature name
+    prompt: Feature name?
+  pkg:
+    type: string
+    description: Dart package name
+    default: app
+hooks:
+  post_gen:
+    - echo "✓ Feature {{name.snakeCase}} ready — re-run stackchain init --overwrite to wire router/DI"

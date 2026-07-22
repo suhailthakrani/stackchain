@@ -1,0 +1,13 @@
+# Example stackchain.yaml — pick any stack
+
+stackchain:
+  architecture: feature_first   # feature_first | clean | mvvm | mvc
+  state_management: bloc        # bloc | cubit | riverpod | provider | getx
+  routing: go_router            # go_router | auto_route | navigator | getx
+  di: get_it                    # get_it | injectable | getx
+  network: dio                  # dio | http
+  features:
+    - splash
+    - auth
+    - home
+    - profile
