@@ -1,5 +1,5 @@
-import 'package:stackchain_flutter/src/models/stackchain_config.dart';
-import 'package:stackchain_flutter/src/utils/pubspec_merger.dart';
+import 'package:stackchain/src/models/stackchain_config.dart';
+import 'package:stackchain/src/utils/pubspec_merger.dart';
 import 'package:test/test.dart';
 
 void main() {

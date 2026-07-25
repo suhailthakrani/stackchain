@@ -1,9 +1,9 @@
-import 'package:stackchain_flutter/src/architecture/architecture_registry.dart';
-import 'package:stackchain_flutter/src/models/enums.dart';
-import 'package:stackchain_flutter/src/models/stackchain_config.dart';
-import 'package:stackchain_flutter/src/templates/app/app_templates.dart';
-import 'package:stackchain_flutter/src/templates/core/core_templates.dart';
-import 'package:stackchain_flutter/src/templates/features/feature_templates.dart';
+import 'package:stackchain/src/architecture/architecture_registry.dart';
+import 'package:stackchain/src/models/enums.dart';
+import 'package:stackchain/src/models/stackchain_config.dart';
+import 'package:stackchain/src/templates/app/app_templates.dart';
+import 'package:stackchain/src/templates/core/core_templates.dart';
+import 'package:stackchain/src/templates/features/feature_templates.dart';
 import 'package:test/test.dart';
 
 void main() {

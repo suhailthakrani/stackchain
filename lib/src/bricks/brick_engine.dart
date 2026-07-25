@@ -55,7 +55,7 @@ class BrickEngine {
   Future<String?> _packageBricksDir() async {
     try {
       final uri = await Isolate.resolvePackageUri(
-        Uri.parse('package:stackchain_flutter/stackchain_flutter.dart'),
+        Uri.parse('package:stackchain/stackchain.dart'),
       );
       if (uri == null) return null;
       final packageRoot = p.dirname(p.dirname(uri.toFilePath()));

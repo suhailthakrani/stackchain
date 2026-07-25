@@ -23,9 +23,7 @@ class YamlParser {
       throw const FormatException('stackchain.yaml must be a YAML map.');
     }
 
-    final root = loaded['stackchain'] ??
-        loaded['stackchain_flutter'] ??
-        loaded['flutter_starter'];
+    final root = loaded['stackchain'] ?? loaded['flutter_starter'];
     if (root == null) {
       return StackchainConfig.defaults(packageName: packageName);
     }

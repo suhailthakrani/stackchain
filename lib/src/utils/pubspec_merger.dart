@@ -101,8 +101,8 @@ Future<void> writeDefaultConfig(String root) async {
 }
 
 const _defaultYaml = '''
-# stackchain_flutter configuration
-# Docs: https://pub.dev/packages/stackchain_flutter
+# stackchain configuration
+# Docs: https://pub.dev/packages/stackchain
 #
 # Most settings are optional — defaults are production-ready.
 

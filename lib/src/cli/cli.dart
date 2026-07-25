@@ -8,7 +8,7 @@ import '../generators/project_generator.dart';
 import '../utils/logger.dart';
 import 'feature_command.dart';
 
-/// Entry for `dart run stackchain_flutter:stackchain` / `:init`.
+/// Entry for `dart run stackchain` / `dart run stackchain:init`.
 Future<void> run(List<String> args) async {
   final parser = ArgParser()
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show usage.')
@@ -44,18 +44,39 @@ Future<void> run(List<String> args) async {
       ..addFlag('help', abbr: 'h', negatable: false)
       ..addFlag('overwrite', abbr: 'f', negatable: false)
       ..addFlag('dry-run', negatable: false)
-      ..addOption('name', abbr: 'n', help: 'Primary name variable for the brick.')
+      ..addOption('name', abbr: 'n', help: 'Name (or pass as positional).')
       ..addMultiOption('var', abbr: 'V', help: 'Extra vars as key=value.'),
   );
-  parser.addCommand('list', ArgParser()..addFlag('help', abbr: 'h', negatable: false));
+  parser.addCommand(
+    'list',
+    ArgParser()..addFlag('help', abbr: 'h', negatable: false),
+  );
   parser.addCommand(
     'feature',
     ArgParser()
       ..addFlag('help', abbr: 'h', negatable: false)
       ..addFlag('overwrite', abbr: 'f', negatable: false)
-      ..addOption('name', abbr: 'n', help: 'Feature name (snake_case).'),
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Feature name (or pass as positional).',
+      ),
   );
-  parser.addCommand('new', ArgParser()..addFlag('help', abbr: 'h', negatable: false));
+  parser.addCommand(
+    'add',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('overwrite', abbr: 'f', negatable: false)
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Feature name (or pass as positional).',
+      ),
+  );
+  parser.addCommand(
+    'new',
+    ArgParser()..addFlag('help', abbr: 'h', negatable: false),
+  );
 
   late ArgResults results;
   try {
@@ -99,31 +120,51 @@ Future<void> run(List<String> args) async {
   switch (command.name) {
     case 'init':
       if (command['help'] == true) {
-        stdout.writeln('Usage: stackchain init [--overwrite] [--dry-run]');
+        stdout.writeln('Usage: dart run stackchain init [--overwrite] [--dry-run]');
         return;
       }
       await _initProject(root, logger, dryRun: dryRun, overwrite: overwrite);
     case 'list':
       await _listBricks(root, logger);
     case 'make':
-      await _makeBrick(command, root, logger, overwrite: overwrite, dryRun: dryRun);
+      await _makeBrick(
+        command,
+        root,
+        logger,
+        overwrite: overwrite,
+        dryRun: dryRun,
+      );
     case 'feature':
-      if (command['help'] == true || command['name'] == null) {
-        stdout.writeln(
-          'Usage: dart run stackchain_flutter:stackchain feature --name auth',
-        );
+    case 'add':
+      final name = _resolveName(command);
+      if (command['help'] == true || name == null) {
+        stdout.writeln('''
+Usage: dart run stackchain feature <name>
+       dart run stackchain add <name>
+
+Examples:
+  dart run stackchain feature auth
+  dart run stackchain add notifications
+''');
         return;
       }
       await FeatureCommand(
         root: root,
         logger: logger,
         overwrite: overwrite,
-      ).add(command['name'] as String);
+      ).add(name);
     case 'new':
       await _scaffoldBrick(root, logger, command.rest);
     default:
       _printUsage(parser);
   }
+}
+
+String? _resolveName(ArgResults command) {
+  final named = command['name'] as String?;
+  if (named != null && named.trim().isNotEmpty) return named.trim();
+  if (command.rest.isNotEmpty) return command.rest.first.trim();
+  return null;
 }
 
 Future<void> _initProject(
@@ -159,7 +200,7 @@ Future<void> _listBricks(String root, Logger logger) async {
     logger.info('  ${entry.key.padRight(16)} ${manifest.description}');
   }
   logger.info('');
-  logger.info('Use: stackchain make <name> --name <value>');
+  logger.info('Use: dart run stackchain make <name> <value>');
 }
 
 Future<void> _makeBrick(
@@ -171,21 +212,26 @@ Future<void> _makeBrick(
 }) async {
   if (command['help'] == true || command.rest.isEmpty) {
     stdout.writeln('''
-Usage: stackchain make <brick> --name <value> [--var key=value]
+Usage: dart run stackchain make <type> <name>
 
 Examples:
-  stackchain make feature --name notifications
-  stackchain make widget --name app_chip
-  stackchain make service --name sync
-  stackchain make page --name onboarding
+  dart run stackchain make feature chat
+  dart run stackchain make page onboarding
+  dart run stackchain make widget app_chip
+  dart run stackchain make service sync
 ''');
     return;
   }
 
   final brickName = command.rest.first;
   final vars = <String, dynamic>{};
-  final name = command['name'] as String?;
-  if (name != null) vars['name'] = name;
+
+  final named = command['name'] as String?;
+  if (named != null && named.trim().isNotEmpty) {
+    vars['name'] = named.trim();
+  } else if (command.rest.length > 1) {
+    vars['name'] = command.rest[1].trim();
+  }
 
   for (final raw in command['var'] as List<String>) {
     final i = raw.indexOf('=');
@@ -196,11 +242,10 @@ Examples:
     vars[raw.substring(0, i)] = raw.substring(i + 1);
   }
 
-  if (!vars.containsKey('name') && command.rest.length > 1) {
-    vars['name'] = command.rest[1];
-  }
   if (!vars.containsKey('name')) {
-    logger.error('Missing --name (or positional name) for brick "$brickName"');
+    logger.error(
+      'Missing name. Try: dart run stackchain make $brickName <name>',
+    );
     exitCode = 64;
     return;
   }
@@ -218,9 +263,13 @@ Examples:
   }
 }
 
-Future<void> _scaffoldBrick(String root, Logger logger, List<String> rest) async {
+Future<void> _scaffoldBrick(
+  String root,
+  Logger logger,
+  List<String> rest,
+) async {
   if (rest.isEmpty) {
-    stdout.writeln('Usage: stackchain new <brick_name>');
+    stdout.writeln('Usage: dart run stackchain new <brick_name>');
     return;
   }
   final name = rest.first;
@@ -248,33 +297,37 @@ class {{name.pascalCase}} {
 }
 ''');
   logger.success('Created custom brick at .stackchain/bricks/$name');
-  logger.info('Edit __brick__/ templates, then: stackchain make $name --name demo');
+  logger.info('Edit __brick__/ templates, then: dart run stackchain make $name demo');
 }
 
 void _printUsage(ArgParser parser) {
   stdout.writeln('''
-stackchain_flutter — Flutter scaffolding you keep using
+stackchain — Flutter scaffolding you keep using
 
-Configure stackchain.yaml (architecture, state, routing, DI, network),
-then generate a runnable app and keep adding features/files as you build.
+Configure stackchain.yaml, then generate a runnable app and keep adding
+features as you build.
 
 Usage:
-  dart run stackchain_flutter:stackchain <command> [options]
-  dart run stackchain_flutter:init
+  dart run stackchain <command> [options]
+  dart run stackchain:init              # shortcut for init
 
 Commands:
-  init                         Scaffold / refresh project from stackchain.yaml
-  feature --name <name>        Add a feature for your configured stack
-  make <generator> --name <v>  Generate feature | page | widget | service
-  list                         List available generators
-  new <name>                   Create a custom generator under .stackchain/bricks/
+  init                  Scaffold project (replaces default counter main.dart)
+  feature <name>        Add a feature  (alias: add)
+  make <type> <name>    Generate feature | page | widget | service
+  list                  List generators
+  new <name>            Create a custom generator
+
+Examples:
+  dart run stackchain init
+  dart run stackchain feature auth
+  dart run stackchain make page onboarding
+  dart run stackchain make widget app_chip
 
 Options:
 ${parser.usage}
 
-Config:
-  stackchain.yaml
-
+Config: stackchain.yaml
   architecture: feature_first | clean | mvvm | mvc
   state_management: bloc | cubit | riverpod | provider | getx
   routing: go_router | auto_route | navigator | getx

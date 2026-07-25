@@ -1,6 +1,6 @@
-import 'package:stackchain_flutter/src/models/enums.dart';
-import 'package:stackchain_flutter/src/models/stackchain_config.dart';
-import 'package:stackchain_flutter/src/parser/yaml_parser.dart';
+import 'package:stackchain/src/models/enums.dart';
+import 'package:stackchain/src/models/stackchain_config.dart';
+import 'package:stackchain/src/parser/yaml_parser.dart';
 import 'package:test/test.dart';
 
 void main() {

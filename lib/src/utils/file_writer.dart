@@ -18,11 +18,15 @@ class FileWriter {
   final List<String> skipped = [];
   final List<String> updated = [];
 
-  Future<void> write(String relativePath, String contents) async {
+  Future<void> write(
+    String relativePath,
+    String contents, {
+    bool force = false,
+  }) async {
     final file = File(p.join(root, relativePath));
     final exists = await file.exists();
 
-    if (exists && !overwrite) {
+    if (exists && !overwrite && !force) {
       skipped.add(relativePath);
       return;
     }
@@ -73,7 +77,7 @@ class ProjectContext {
     if (!content.contains(RegExp(r'^flutter\s*:', multiLine: true))) {
       throw StateError(
         'pubspec.yaml has no flutter section. '
-        'stackchain_flutter must run inside a Flutter app.',
+        'stackchain must run inside a Flutter app.',
       );
     }
     final nameMatch = RegExp(r'^name:\s*(\S+)', multiLine: true).firstMatch(content);

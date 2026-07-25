@@ -1,4 +1,4 @@
-import 'package:stackchain_flutter/src/bricks/template_renderer.dart';
+import 'package:stackchain/src/bricks/template_renderer.dart';
 import 'package:test/test.dart';
 
 void main() {

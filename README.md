@@ -1,4 +1,4 @@
-# stackchain_flutter
+# stackchain
 
 Config-driven Flutter scaffolding you keep as a **dev dependency**.
 
@@ -10,17 +10,19 @@ Requires an existing Flutter app (`flutter create my_app`).
 
 ```bash
 cd my_app
-dart pub add --dev stackchain_flutter
-dart run stackchain_flutter:stackchain init
+dart pub add --dev stackchain
+dart run stackchain init
 flutter pub get
 flutter run
 ```
+
+`init` replaces Flutter’s default counter `lib/main.dart` with a production entrypoint (`configureDependencies` + `App`), and scaffolds `lib/app`, `lib/core`, and `lib/features`.
 
 Or in `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  stackchain_flutter: ^1.0.0
+  stackchain: ^1.0.0
 ```
 
 No config file needed on first run — production defaults are applied automatically.
@@ -97,30 +99,35 @@ Omit any key to use the default. If `state_management: getx` and you do not set 
 
 ## Commands
 
+All commands use the short form `dart run stackchain …`:
+
 ```bash
-# Scaffold or refresh from stackchain.yaml
-dart run stackchain_flutter:stackchain init
-dart run stackchain_flutter:init                    # alias
+# Scaffold (replaces default counter main.dart)
+dart run stackchain init
+dart run stackchain:init                 # same thing
 
 # Useful flags
-dart run stackchain_flutter:stackchain init --overwrite
-dart run stackchain_flutter:stackchain init --dry-run
+dart run stackchain init --overwrite
+dart run stackchain init --dry-run
 
-# Add a feature (updates yaml + generates layers for your stack)
-dart run stackchain_flutter:stackchain feature --name notifications
+# Add a feature (positional name — no --name required)
+dart run stackchain feature auth
+dart run stackchain add notifications    # alias for feature
 
-# Generate files anytime after day one
-dart run stackchain_flutter:stackchain make feature --name chat
-dart run stackchain_flutter:stackchain make page --name onboarding
-dart run stackchain_flutter:stackchain make widget --name app_chip
-dart run stackchain_flutter:stackchain make service --name sync
+# Generate files anytime
+dart run stackchain make feature chat
+dart run stackchain make page onboarding
+dart run stackchain make widget app_chip
+dart run stackchain make service sync
 
 # List generators / add a custom one
-dart run stackchain_flutter:stackchain list
-dart run stackchain_flutter:stackchain new my_generator
+dart run stackchain list
+dart run stackchain new my_generator
 ```
 
-After adding features, re-run `init --overwrite` if you want router and DI registrations refreshed automatically.
+After adding features, re-run `dart run stackchain init --overwrite` if you want router and DI registrations refreshed automatically.
+
+Optional: `dart pub global activate stackchain` then use `stackchain init` without `dart run`.
 
 ## What `init` generates
 
@@ -129,7 +136,7 @@ lib/
 ├── app/           # App widget, theme, config, router
 ├── core/          # network, storage, di, errors, utils, services, widgets
 ├── features/      # one module per feature (layout matches architecture)
-└── main.dart
+└── main.dart      # replaces Flutter counter template
 ```
 
 Also updates `pubspec.yaml` dependencies, analysis options, and basic test scaffolding.

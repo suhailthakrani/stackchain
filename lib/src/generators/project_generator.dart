@@ -72,9 +72,11 @@ class ProjectGenerator {
       ...ModuleTemplates(config).generate(),
     };
 
+    final forceMain = await _shouldReplaceMainDart();
     logger.step('Writing ${files.length} files...');
     for (final entry in files.entries) {
-      await writer.write(entry.key, entry.value);
+      final force = entry.key == 'lib/main.dart' && forceMain;
+      await writer.write(entry.key, entry.value, force: force);
       logger.detail(entry.key);
     }
 
@@ -84,6 +86,51 @@ class ProjectGenerator {
 
     _printSummary(writer, config);
     return config;
+  }
+
+  /// Replace Flutter's default counter `main.dart` (or missing entrypoint).
+  Future<bool> _shouldReplaceMainDart() async {
+    final mainFile = File(p.join(root, 'lib/main.dart'));
+    if (!await mainFile.exists()) return true;
+    final content = await mainFile.readAsString();
+    if (_isStockFlutterCounterMain(content)) {
+      logger.step('Replacing Flutter default counter main.dart');
+      return true;
+    }
+    // Already a stackchain entrypoint — refresh when --overwrite is set.
+    if (content.contains('configureDependencies') &&
+        content.contains('package:') &&
+        content.contains('/app/app.dart')) {
+      return overwrite;
+    }
+    // Unknown / custom main — only touch with --overwrite.
+    if (!overwrite) {
+      logger.warn(
+        'lib/main.dart looks customized — pass --overwrite to replace it',
+      );
+    }
+    return overwrite;
+  }
+
+  /// Detects Flutter create templates (counter or minimal MyApp).
+  static bool _isStockFlutterCounterMain(String content) {
+    if (content.contains('configureDependencies') &&
+        content.contains('/app/app.dart')) {
+      return false;
+    }
+
+    final hasCounter = content.contains('_counter') ||
+        content.contains('_incrementCounter') ||
+        content.contains('Increment the counter');
+    final hasStockHome = content.contains('MyHomePage') ||
+        (content.contains('class MyApp') &&
+            content.contains('FloatingActionButton'));
+    if (hasCounter && hasStockHome) return true;
+
+    // `flutter create --empty` / minimal demo shell
+    return content.contains('class MyApp') &&
+        !content.contains('/app/app.dart') &&
+        (content.contains('Hello World') || content.contains('MyHomePage'));
   }
 
   Future<StackchainConfig> _loadConfig(String packageName) async {
@@ -121,7 +168,7 @@ class ProjectGenerator {
   }
 
   void _printSummary(FileWriter writer, StackchainConfig config) {
-    logger.banner('stackchain_flutter');
+    logger.banner('stackchain');
     logger.success('Created ${writer.created.length} files');
     if (writer.updated.isNotEmpty) {
       logger.info('Updated ${writer.updated.length} files');

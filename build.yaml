@@ -1,5 +1,5 @@
-# Primary workflow is the CLI:
-#   dart run stackchain_flutter:init
+# Primary workflow:
+#   dart run stackchain init
 #
 # Reserved for future incremental generators. No builders required for v1.
 

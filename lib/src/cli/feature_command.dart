@@ -57,7 +57,7 @@ class FeatureCommand {
 
     logger.success('Generated feature "$name" (${files.length} files)');
     logger.info(
-      'Re-run `dart run stackchain_flutter:init --overwrite` to refresh '
+      'Re-run `dart run stackchain init --overwrite` to refresh '
       'router and DI registrations.',
     );
   }
@@ -89,7 +89,6 @@ stackchain:
     final doc = loadYaml(content);
     final yamlRoot = doc is YamlMap
         ? (doc['stackchain'] ??
-            doc['stackchain_flutter'] ??
             doc['flutter_starter'])
         : null;
     if (yamlRoot is YamlMap) {

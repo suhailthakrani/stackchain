@@ -1,8 +1,8 @@
-/// Stackchain Flutter — config-driven project scaffolding.
+/// Stackchain — config-driven Flutter project scaffolding.
 ///
 /// ```bash
-/// dart run stackchain_flutter:stackchain init
-/// dart run stackchain_flutter:stackchain feature --name auth
+/// dart run stackchain init
+/// dart run stackchain feature auth
 /// ```
 library;
 
