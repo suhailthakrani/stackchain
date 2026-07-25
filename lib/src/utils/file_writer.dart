@@ -80,7 +80,8 @@ class ProjectContext {
         'stackchain must run inside a Flutter app.',
       );
     }
-    final nameMatch = RegExp(r'^name:\s*(\S+)', multiLine: true).firstMatch(content);
+    final nameMatch =
+        RegExp(r'^name:\s*(\S+)', multiLine: true).firstMatch(content);
     if (nameMatch == null) {
       throw StateError('Could not read package name from pubspec.yaml');
     }

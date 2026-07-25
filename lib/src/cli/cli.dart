@@ -120,7 +120,8 @@ Future<void> run(List<String> args) async {
   switch (command.name) {
     case 'init':
       if (command['help'] == true) {
-        stdout.writeln('Usage: dart run stackchain init [--overwrite] [--dry-run]');
+        stdout.writeln(
+            'Usage: dart run stackchain init [--overwrite] [--dry-run]');
         return;
       }
       await _initProject(root, logger, dryRun: dryRun, overwrite: overwrite);
@@ -285,19 +286,20 @@ vars:
     description: Name
     prompt: Name?
 ''');
-  await File(
-    p.join(brickDir.path, 'lib', '{{name.snakeCase}}.dart'),
-  ).create(recursive: true);
-  await File(
-    p.join(brickDir.path, 'lib', '{{name.snakeCase}}.dart'),
-  ).writeAsString('''
+  // `.tpl` keeps mustache sources out of `dart format` / analysis.
+  final template = File(
+    p.join(brickDir.path, 'lib', '{{name.snakeCase}}.dart$templateSuffix'),
+  );
+  await template.create(recursive: true);
+  await template.writeAsString('''
 // Custom brick: $name
 class {{name.pascalCase}} {
   const {{name.pascalCase}}();
 }
 ''');
   logger.success('Created custom brick at .stackchain/bricks/$name');
-  logger.info('Edit __brick__/ templates, then: dart run stackchain make $name demo');
+  logger.info(
+      'Edit __brick__/ templates, then: dart run stackchain make $name demo');
 }
 
 void _printUsage(ArgParser parser) {

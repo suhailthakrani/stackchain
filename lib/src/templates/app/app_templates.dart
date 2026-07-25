@@ -132,9 +132,8 @@ $localization
     }
 
     // navigator / auto_route fallback uses MaterialApp + home
-    final homeFeature = config.features.contains('home')
-        ? 'home'
-        : config.features.first;
+    final homeFeature =
+        config.features.contains('home') ? 'home' : config.features.first;
     final pageImport = _pageImport(homeFeature);
     return '''
 import 'package:flutter/material.dart';

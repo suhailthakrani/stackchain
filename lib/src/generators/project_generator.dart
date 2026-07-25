@@ -182,8 +182,7 @@ class ProjectGenerator {
     logger.info('');
     logger.info('Next steps:');
     logger.info('  1. flutter pub get');
-    if (config.di == DiType.injectable ||
-        config.routing == Routing.autoRoute) {
+    if (config.di == DiType.injectable || config.routing == Routing.autoRoute) {
       logger.info(
         '  2. dart run build_runner build --delete-conflicting-outputs',
       );

@@ -104,7 +104,8 @@ void main() {
         logger: Logger(),
       ).run();
 
-      final main = await File(p.join(temp.path, 'lib/main.dart')).readAsString();
+      final main =
+          await File(p.join(temp.path, 'lib/main.dart')).readAsString();
       expect(main, contains('configureDependencies'));
       expect(main, contains('/app/app.dart'));
       expect(main, isNot(contains('_counter')));

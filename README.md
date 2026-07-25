@@ -127,6 +127,8 @@ dart run stackchain new my_generator
 
 After adding features, re-run `dart run stackchain init --overwrite` if you want router and DI registrations refreshed automatically.
 
+Custom generators live in `.stackchain/bricks/<name>/__brick__/`. Template files end in `.tpl` (for example `{{name.snakeCase}}.dart.tpl`) so `dart format` and the analyzer ignore the unrendered mustache source; the suffix is stripped on generation.
+
 Optional: `dart pub global activate stackchain` then use `stackchain init` without `dart run`.
 
 ## What `init` generates

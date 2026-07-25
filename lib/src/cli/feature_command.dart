@@ -33,7 +33,8 @@ class FeatureCommand {
     var config = await _loadConfig(context.packageName);
 
     if (config.features.contains(name)) {
-      logger.warn('Feature "$name" already listed in config — regenerating files.');
+      logger.warn(
+          'Feature "$name" already listed in config — regenerating files.');
     } else {
       config = config.copyWith(features: [...config.features, name]);
       await _appendFeatureToYaml(name);
@@ -87,10 +88,8 @@ stackchain:
 
     final content = await file.readAsString();
     final doc = loadYaml(content);
-    final yamlRoot = doc is YamlMap
-        ? (doc['stackchain'] ??
-            doc['flutter_starter'])
-        : null;
+    final yamlRoot =
+        doc is YamlMap ? (doc['stackchain'] ?? doc['flutter_starter']) : null;
     if (yamlRoot is YamlMap) {
       final features = yamlRoot['features'];
       if (features is YamlList) {

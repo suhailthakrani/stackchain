@@ -30,7 +30,8 @@ class FeatureTemplates {
     final pascal = ReCase(feature).pascalCase;
 
     return switch (config.architecture) {
-      Architecture.featureFirst || Architecture.clean =>
+      Architecture.featureFirst ||
+      Architecture.clean =>
         _layered(feature, pascal, layout),
       Architecture.mvvm => _mvvm(feature, pascal, layout),
       Architecture.mvc => _mvc(feature, pascal, layout),
@@ -335,9 +336,11 @@ class ${pascal}Provider extends ChangeNotifier {
         };
       case StateManagement.getx:
         final controllerImport = switch (config.architecture) {
-          Architecture.mvc || Architecture.mvvm =>
+          Architecture.mvc ||
+          Architecture.mvvm =>
             "../controllers/${feature}_controller.dart",
-          Architecture.featureFirst || Architecture.clean =>
+          Architecture.featureFirst ||
+          Architecture.clean =>
             "../presentation/controllers/${feature}_controller.dart",
         };
         // MVVM+GetX still uses a GetxController file in viewmodels folder.
@@ -386,15 +389,14 @@ class ${pascal}Binding extends Bindings {
     final navLinks = config.features
         .where((f) => f != feature && config.routing == Routing.goRouter)
         .map((f) {
-          final label = ReCase(f).pascalCase;
-          return '''
+      final label = ReCase(f).pascalCase;
+      return '''
             ListTile(
               title: const Text('$label'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(AppRoutes.$f),
             ),''';
-        })
-        .join();
+    }).join();
 
     final packageImports = <String>[
       "import 'package:flutter/material.dart';",
@@ -599,22 +601,20 @@ class ${pascal}Page extends StatelessWidget {
         final controllerRel = switch (config.architecture) {
           Architecture.mvc => '../controllers/${feature}_controller.dart',
           Architecture.mvvm => '../viewmodels/${feature}_controller.dart',
-          Architecture.featureFirst || Architecture.clean =>
+          Architecture.featureFirst ||
+          Architecture.clean =>
             '../controllers/${feature}_controller.dart',
         };
         final navGetx = config.routing == Routing.getx
-            ? config.features
-                .where((f) => f != feature)
-                .map((f) {
-                  final label = ReCase(f).pascalCase;
-                  return '''
+            ? config.features.where((f) => f != feature).map((f) {
+                final label = ReCase(f).pascalCase;
+                return '''
             ListTile(
               title: const Text('$label'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Get.toNamed(AppRoutes.$f),
             ),''';
-                })
-                .join()
+              }).join()
             : navLinks;
         return '''
 $pkgBlock

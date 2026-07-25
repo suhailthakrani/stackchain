@@ -24,10 +24,11 @@ class RouterTemplates {
   }
 
   String _routesOnly() {
-    final buffer = StringBuffer()
-      ..writeln('abstract final class AppRoutes {');
+    final buffer = StringBuffer()..writeln('abstract final class AppRoutes {');
     for (final f in config.features) {
-      final path = f == 'home' || f == 'splash' ? (f == 'splash' ? '/splash' : '/') : '/$f';
+      final path = f == 'home' || f == 'splash'
+          ? (f == 'splash' ? '/splash' : '/')
+          : '/$f';
       final name = f;
       buffer.writeln("  static const String $name = '$path';");
     }
@@ -166,7 +167,8 @@ $routes
     for (final f in config.features) {
       final pascal = _pascal(f);
       imports.writeln("import 'package:$pkg/${_pageImport(f)}';");
-      routes.writeln('        AutoRoute(page: ${pascal}Route.page, path: AppRoutes.$f),');
+      routes.writeln(
+          '        AutoRoute(page: ${pascal}Route.page, path: AppRoutes.$f),');
     }
 
     return '''

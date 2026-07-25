@@ -1,8 +1,8 @@
 name: stackchain
-description: >
-  Production Flutter scaffolding you keep using: configure architecture, state
-  (bloc/cubit/riverpod/provider/getx), routing, DI, and networking in
-  stackchain.yaml — then generate features, pages, widgets, and services as you build.
+description: >-
+  Config-driven Flutter scaffolding CLI. Set architecture, state management,
+  routing, DI, and networking in stackchain.yaml, then generate features
+  on demand.
 version: 1.0.0
 homepage: https://github.com/suhailthakrani/stackchain
 repository: https://github.com/suhailthakrani/stackchain

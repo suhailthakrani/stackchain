@@ -70,9 +70,8 @@ class DefaultFirebaseOptions {
   }
 
   String _widgetTest() {
-    final home = config.features.contains('home')
-        ? 'home'
-        : config.features.first;
+    final home =
+        config.features.contains('home') ? 'home' : config.features.first;
     final pascal = home
         .split('_')
         .map((s) => '${s[0].toUpperCase()}${s.substring(1)}')
@@ -82,9 +81,8 @@ class DefaultFirebaseOptions {
     final imports = riverpod
         ? "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
         : '';
-    final appWidget = riverpod
-        ? 'const ProviderScope(child: App())'
-        : 'const App()';
+    final appWidget =
+        riverpod ? 'const ProviderScope(child: App())' : 'const App()';
 
     return '''
 import 'package:flutter_test/flutter_test.dart';

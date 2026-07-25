@@ -8,6 +8,15 @@ import '../utils/logger.dart';
 import 'brick_manifest.dart';
 import 'template_renderer.dart';
 
+/// Trailing marker on template files so `dart format` skips unparsable
+/// mustache sources such as `widget.dart.tpl`.
+const templateSuffix = '.tpl';
+
+/// Removes a trailing [templateSuffix] from a rendered brick path.
+String stripTemplateSuffix(String path) => path.endsWith(templateSuffix)
+    ? path.substring(0, path.length - templateSuffix.length)
+    : path;
+
 /// Mason-like brick generator: file templates + vars + hooks.
 class BrickEngine {
   BrickEngine({
@@ -111,8 +120,9 @@ class BrickEngine {
     await for (final entity in brickDir.list(recursive: true)) {
       if (entity is! File) continue;
       final relative = p.relative(entity.path, from: brickDir.path);
-      final renderedPath = TemplateRenderer.render(relative, resolved)
-          .replaceAll(r'\', '/');
+      final renderedPath = stripTemplateSuffix(
+        TemplateRenderer.render(relative, resolved).replaceAll(r'\', '/'),
+      );
       // Skip mustache "partial" helpers if any
       if (renderedPath.contains('{{')) {
         logger.warn('Unresolved path vars in $relative — skipped');

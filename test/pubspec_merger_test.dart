@@ -32,6 +32,7 @@ flutter:
     expect(merged, contains('bloc_test:'));
     // Still only one of each section header
     expect('dev_dependencies:'.allMatches(merged).length, 1);
-    expect(RegExp(r'^dependencies:', multiLine: true).allMatches(merged).length, 1);
+    expect(RegExp(r'^dependencies:', multiLine: true).allMatches(merged).length,
+        1);
   });
 }
