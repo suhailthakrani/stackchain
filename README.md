@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/stackchain_logo.png" alt="Stackchain logo" width="420">
+  <img src="https://raw.githubusercontent.com/suhailthakrani/stackchain/main/assets/stackchain_logo.png" alt="Stackchain logo" width="420">
 </p>
 
 # stackchain
@@ -26,7 +26,7 @@ Or in `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  stackchain: ^1.1.0
+  stackchain: ^1.1.1
 ```
 
 No config file needed on first run — production defaults are applied automatically (including secure storage, flavors, and CI).
@@ -151,8 +151,10 @@ dart run stackchain sync
 
 # Evolve the project
 dart run stackchain upgrade
+dart run stackchain migrate --state cubit --dry-run
 dart run stackchain migrate --state cubit
 dart run stackchain migrate --preset production_riverpod
+dart run stackchain migrate --state cubit --keep-old   # skip cleanup
 
 # Trust
 dart run stackchain doctor
@@ -182,6 +184,16 @@ GoRoute(path: AppRoutes.home, ...),
 ```
 
 `sync`, `feature`, `upgrade`, and `migrate` replace **only** those regions and merge missing imports. Code outside the markers is preserved.
+
+## Switching state management
+
+`migrate --state <target>` moves the whole project in one command:
+
+- regenerates every feature's state, pages, and bindings for the new stack
+- deletes the files the old stack generated and drops packages it no longer needs
+- rewires router and DI managed regions, then runs the quality gate
+
+Your `domain/` and `data/` layers are untouched — business logic survives the swap. Only Stackchain-generated files are candidates for deletion, so hand-written files stay. Generated files you edited by hand *are* rewritten, so commit first and preview with `--dry-run`; `--keep-old` skips cleanup entirely.
 
 ## What `init` generates
 

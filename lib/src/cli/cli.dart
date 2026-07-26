@@ -74,6 +74,11 @@ Future<void> run(List<String> args) async {
       ..addFlag('help', abbr: 'h', negatable: false)
       ..addFlag('dry-run', negatable: false)
       ..addFlag('skip-analyze', negatable: false)
+      ..addFlag(
+        'keep-old',
+        negatable: false,
+        help: 'Keep files/packages the previous stack needed',
+      )
       ..addOption('architecture', help: 'Target architecture')
       ..addOption('state', help: 'Target state_management')
       ..addOption('routing', help: 'Target routing')
@@ -424,6 +429,7 @@ Future<void> _migrate(
       logger: logger,
       dryRun: dryRun,
       skipAnalyze: skipAnalyze,
+      cleanup: command['keep-old'] != true,
       packageVersion: stackchainPackageVersion,
     ).run(patch);
     if (!report.quality.passed) exitCode = 1;
@@ -694,7 +700,9 @@ Options:
 Usage: dart run stackchain migrate [options]
 
 Evolve the stack intentionally (e.g. bloc → cubit, or apply a preset).
-Regenerates presentation layers, updates pubspec, syncs, and runs the gate.
+Regenerates presentation layers, deletes the old stack's generated files,
+drops packages it no longer needs, updates pubspec, syncs, runs the gate.
+Domain and data layers are never touched.
 
 Options:
   --state bloc|cubit|riverpod|provider|getx|rxdart
@@ -703,10 +711,12 @@ Options:
   --di get_it|injectable|getx
   --network dio|http
   --preset production_bloc|production_riverpod|production_rxdart|...
+  --keep-old          Leave old generated files and packages in place
   --dry-run
   --skip-analyze
 
 Examples:
+  dart run stackchain migrate --state rxdart --dry-run
   dart run stackchain migrate --state rxdart
   dart run stackchain migrate --preset production_riverpod
 ''');

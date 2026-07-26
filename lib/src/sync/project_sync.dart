@@ -10,6 +10,7 @@ import '../templates/app/router_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../utils/logger.dart';
 import '../utils/stack_paths.dart';
+import 'baseline_ensurer.dart';
 
 /// Incrementally wires router + DI from [StackchainConfig] using smart merges.
 ///
@@ -33,10 +34,20 @@ class ProjectSync {
   final List<String> touched = [];
 
   Future<void> run() async {
+    final baseline = await BaselineEnsurer(
+      root: root,
+      config: config,
+      logger: logger,
+      dryRun: dryRun,
+    ).ensure();
+    touched.addAll(baseline);
+
     logger.step('Syncing managed regions (router + DI)...');
     await _syncRoutes();
     await _syncRouter();
     await _syncDi();
+    // Always keep guards aligned with SessionService once baseline exists.
+    await _ensureRouteGuards();
     if (touched.isEmpty) {
       final router = File(p.join(root, 'lib/app/router/app_routes.dart'));
       if (!await router.exists()) {
@@ -147,22 +158,7 @@ class ProjectSync {
       }
     }
 
-    const path = 'lib/app/router/route_guards.dart';
-    final guardsGenerated = RouterTemplates(config).generate()[path];
-    if (guardsGenerated != null) {
-      final guardsFile = File(p.join(root, path));
-      final existing =
-          await guardsFile.exists() ? await guardsFile.readAsString() : null;
-      if (existing == null ||
-          existing.contains('return true;') &&
-              !existing.contains('hasSession')) {
-        if (!dryRun) {
-          await guardsFile.parent.create(recursive: true);
-          await guardsFile.writeAsString(guardsGenerated);
-        }
-        if (!touched.contains(path)) touched.add(path);
-      }
-    }
+    await _ensureRouteGuards();
 
     if (!changed) return;
     if (dryRun) {
@@ -172,6 +168,29 @@ class ProjectSync {
     await file.writeAsString(content);
     if (!touched.contains(relativePath)) touched.add(relativePath);
     logger.detail('Ensured auth redirect in $relativePath');
+  }
+
+  Future<void> _ensureRouteGuards() async {
+    const path = 'lib/app/router/route_guards.dart';
+    final guardsGenerated = RouterTemplates(config).generate()[path];
+    if (guardsGenerated == null) return;
+    final guardsFile = File(p.join(root, path));
+    final existing =
+        await guardsFile.exists() ? await guardsFile.readAsString() : null;
+    if (existing != null &&
+        existing.contains('SessionService') &&
+        existing.contains('hasSession')) {
+      return;
+    }
+    if (dryRun) {
+      logger.detail('Would ensure $path');
+      if (!touched.contains(path)) touched.add(path);
+      return;
+    }
+    await guardsFile.parent.create(recursive: true);
+    await guardsFile.writeAsString(guardsGenerated);
+    if (!touched.contains(path)) touched.add(path);
+    logger.detail('Ensured $path');
   }
 
   String _routerRoutesBody() {

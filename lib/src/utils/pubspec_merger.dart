@@ -26,6 +26,79 @@ class PubspecMerger {
     return result;
   }
 
+  /// Removes [packages] from `dependencies` / `dev_dependencies`.
+  ///
+  /// Used by `migrate` to drop packages the old stack needed and the new one
+  /// does not (e.g. `flutter_bloc` after bloc → riverpod).
+  static String prune({
+    required String existing,
+    required Iterable<String> packages,
+  }) {
+    final names = packages.toSet();
+    if (names.isEmpty) return existing;
+
+    var result = existing;
+    result = _removeFromBlock(result, 'dependencies', names);
+    result = _removeFromBlock(result, 'dev_dependencies', names);
+    return result;
+  }
+
+  /// Packages required by [before] but no longer required by [after].
+  static Set<String> obsoletePackages({
+    required StackchainConfig before,
+    required StackchainConfig after,
+  }) {
+    final keep = {
+      ...after.inferredDependencies().keys,
+      ...after.inferredDevDependencies().keys,
+    };
+    return {
+      ...before.inferredDependencies().keys,
+      ...before.inferredDevDependencies().keys,
+    }.where((name) => !keep.contains(name)).toSet();
+  }
+
+  static String _removeFromBlock(
+    String content,
+    String section,
+    Set<String> names,
+  ) {
+    final match = RegExp('^$section:\\s*\$', multiLine: true)
+        .firstMatch(content);
+    if (match == null) return content;
+
+    final after = content.substring(match.end);
+    final nextTop = RegExp(
+      r'^[a-zA-Z_][a-zA-Z0-9_]*:',
+      multiLine: true,
+    ).firstMatch(after);
+    final blockEnd = nextTop == null ? after.length : nextTop.start;
+    final block = after.substring(0, blockEnd);
+
+    final lines = block.split('\n');
+    final kept = <String>[];
+    var skippingChildrenOf = -1;
+    for (final line in lines) {
+      final indent = line.length - line.trimLeft().length;
+      if (skippingChildrenOf >= 0) {
+        // Drop nested config (e.g. `sdk:` / `version:`) under a removed key.
+        if (line.trim().isEmpty || indent > skippingChildrenOf) continue;
+        skippingChildrenOf = -1;
+      }
+      final key = RegExp(r'^(\s+)([a-zA-Z0-9_]+):').firstMatch(line);
+      if (key != null && names.contains(key.group(2))) {
+        skippingChildrenOf = indent;
+        continue;
+      }
+      kept.add(line);
+    }
+
+    if (kept.length == lines.length) return content;
+    return content.substring(0, match.end) +
+        kept.join('\n') +
+        after.substring(blockEnd);
+  }
+
   static bool _hasFlutterGenL10n(String content) {
     return content.contains('generate: true');
   }

@@ -23,7 +23,8 @@ class MigrationEngine {
     this.dryRun = false,
     this.overwritePresentation = true,
     this.skipAnalyze = false,
-    this.packageVersion = '1.1.0',
+    this.cleanup = true,
+    this.packageVersion = '1.1.1',
   }) : logger = logger ?? Logger();
 
   final String root;
@@ -31,6 +32,10 @@ class MigrationEngine {
   final bool dryRun;
   final bool overwritePresentation;
   final bool skipAnalyze;
+
+  /// Delete files and packages the previous stack needed and the new one
+  /// does not. Disable with `--keep-old` to review leftovers manually.
+  final bool cleanup;
   final String packageVersion;
 
   /// Applies [patch] onto stackchain.yaml + regenerates presentation + sync.
@@ -71,12 +76,46 @@ class MigrationEngine {
     }
     logger.success('Migrated $fileCount presentation file(s)');
 
+    final removedFiles =
+        cleanup ? await _removeStaleFiles(before, after, registry) : <String>[];
+    if (removedFiles.isNotEmpty) {
+      logger.success(
+        '${dryRun ? "Would remove" : "Removed"} ${removedFiles.length} '
+        'stale file(s) from the old stack',
+      );
+      for (final path in removedFiles) {
+        logger.detail('  - $path');
+      }
+    }
+
     final pubspecFile = File(p.join(root, 'pubspec.yaml'));
     final existing = await pubspecFile.readAsString();
-    final merged = PubspecMerger.merge(existing: existing, config: after);
+    var merged = PubspecMerger.merge(existing: existing, config: after);
+
+    final removedPackages = <String>[];
+    if (cleanup) {
+      final obsolete = PubspecMerger.obsoletePackages(
+        before: before,
+        after: after,
+      );
+      removedPackages.addAll(
+        obsolete.where((name) => _declaresPackage(existing, name)),
+      );
+      removedPackages.sort();
+      if (removedPackages.isNotEmpty) {
+        merged = PubspecMerger.prune(existing: merged, packages: obsolete);
+      }
+    }
+
     if (merged != existing && !dryRun) {
       await pubspecFile.writeAsString(merged);
       logger.success('Updated pubspec.yaml for new stack');
+    }
+    if (removedPackages.isNotEmpty) {
+      logger.success(
+        '${dryRun ? "Would drop" : "Dropped"} unused package(s): '
+        '${removedPackages.join(", ")}',
+      );
     }
 
     final sync = ProjectSync(
@@ -102,7 +141,82 @@ class MigrationEngine {
       before: before,
       after: after,
       quality: gate,
+      removedFiles: removedFiles,
+      removedPackages: removedPackages,
     );
+  }
+
+  /// Files the old stack generated that the new stack no longer owns.
+  ///
+  /// Derived by diffing the generated file sets, so hand-written files are
+  /// never candidates — only scaffolding Stackchain itself produced.
+  Future<List<String>> _removeStaleFiles(
+    StackchainConfig before,
+    StackchainConfig after,
+    ArchitectureRegistry registry,
+  ) async {
+    final keep = <String>{};
+    for (final feature in after.features) {
+      keep.addAll(
+        FeatureTemplates(
+          after.copyWith(features: [feature]),
+          registry: registry,
+        ).generate().keys,
+      );
+    }
+
+    final stale = <String>{};
+    for (final feature in before.features) {
+      final generated = FeatureTemplates(
+        before.copyWith(features: [feature]),
+        registry: registry,
+      ).generate().keys;
+      for (final path in generated) {
+        if (!_isPresentationPath(path, before)) continue;
+        if (keep.contains(path)) continue;
+        stale.add(path);
+      }
+    }
+
+    final removed = <String>[];
+    final parents = <String>{};
+    for (final rel in stale.toList()..sort()) {
+      final file = File(p.join(root, rel));
+      if (!file.existsSync()) continue;
+      removed.add(rel);
+      parents.add(p.dirname(file.path));
+      if (!dryRun) await file.delete();
+    }
+
+    if (!dryRun) {
+      for (final dir in parents) {
+        await _pruneEmptyDirs(dir);
+      }
+    }
+    return removed;
+  }
+
+  /// Walks up from [start] deleting empty directories, stopping at `lib/`.
+  Future<void> _pruneEmptyDirs(String start) async {
+    final libRoot = p.normalize(p.join(root, 'lib'));
+    var current = p.normalize(start);
+    while (p.isWithin(libRoot, current)) {
+      final dir = Directory(current);
+      if (!dir.existsSync()) {
+        current = p.dirname(current);
+        continue;
+      }
+      if (dir.listSync().isNotEmpty) return;
+      await dir.delete();
+      current = p.dirname(current);
+    }
+  }
+
+  bool _declaresPackage(String pubspec, String name) {
+    return RegExp(
+      '^\\s+${RegExp.escape(name)}:',
+      multiLine: true,
+    ).hasMatch(pubspec);
   }
 
   bool _isPresentationPath(String path, StackchainConfig config) {
@@ -222,9 +336,13 @@ class MigrationReport {
     required this.before,
     required this.after,
     required this.quality,
+    this.removedFiles = const [],
+    this.removedPackages = const [],
   });
 
   final StackchainConfig before;
   final StackchainConfig after;
   final QualityReport quality;
+  final List<String> removedFiles;
+  final List<String> removedPackages;
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- `migrate` now cleans up the old stack: deletes the state files it generated and drops packages the new stack no longer needs (`--keep-old` to opt out)
+- Fix `migrate` / `upgrade` / `sync` on older apps: create missing `SessionService` and upgrade legacy Dio, environment, and route guard files
+- Fix package logo on pub.dev
+
 ## 1.1.0
 
 - Keep scaffolding after init: `sync`, `upgrade`, and `migrate`

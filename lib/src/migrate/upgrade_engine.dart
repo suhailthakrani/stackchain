@@ -21,7 +21,7 @@ class UpgradeEngine {
     Logger? logger,
     this.dryRun = false,
     this.skipAnalyze = false,
-    this.packageVersion = '1.1.0',
+    this.packageVersion = '1.1.1',
   }) : logger = logger ?? Logger();
 
   final String root;
