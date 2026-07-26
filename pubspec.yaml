@@ -1,13 +1,16 @@
 name: stackchain
 description: >-
-  Config-driven Flutter scaffolding CLI. Set architecture, state management,
-  routing, DI, and networking in stackchain.yaml, then generate features
-  on demand.
-version: 1.0.0
+  Config-driven Flutter scaffolding that evolves with your app. Presets,
+  vertical slices, smart merges, upgrade/migrate, and a quality gate on
+  every generate.
+version: 1.1.0
 homepage: https://github.com/suhailthakrani/stackchain
 repository: https://github.com/suhailthakrani/stackchain
 issue_tracker: https://github.com/suhailthakrani/stackchain/issues
 documentation: https://github.com/suhailthakrani/stackchain#readme
+screenshots:
+  - description: Stackchain — config-driven Flutter scaffolding
+    path: assets/stackchain_logo.png
 topics:
   - flutter
   - generator

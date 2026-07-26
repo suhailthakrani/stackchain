@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../architecture/architecture_registry.dart';
+import '../migrate/stack_lock.dart';
 import '../models/enums.dart';
 import '../models/stackchain_config.dart';
 import '../parser/config_validator.dart';
 import '../parser/yaml_parser.dart';
+import '../quality/quality_gate.dart';
 import '../templates/app/app_templates.dart';
 import '../templates/app/router_templates.dart';
 import '../templates/core/core_templates.dart';
@@ -15,6 +17,7 @@ import '../templates/test/module_templates.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../utils/pubspec_merger.dart';
+import '../version.dart';
 
 /// Orchestrates full project generation.
 class ProjectGenerator {
@@ -24,6 +27,7 @@ class ProjectGenerator {
     ArchitectureRegistry? architectureRegistry,
     this.dryRun = false,
     this.overwrite = false,
+    this.skipAnalyze = false,
   })  : logger = logger ?? Logger(),
         architectureRegistry = architectureRegistry ?? ArchitectureRegistry();
 
@@ -32,12 +36,16 @@ class ProjectGenerator {
   final ArchitectureRegistry architectureRegistry;
   final bool dryRun;
   final bool overwrite;
+  final bool skipAnalyze;
 
   Future<StackchainConfig> run() async {
     final context = await ProjectContext.detect(root);
     logger.step('Detected Flutter app: ${context.packageName}');
 
     final config = await _loadConfig(context.packageName);
+    if (config.preset != null) {
+      logger.step('Preset: ${config.preset}');
+    }
     final warnings = const ConfigValidator().validate(config);
     for (final w in warnings) {
       logger.warn(w);
@@ -84,7 +92,31 @@ class ProjectGenerator {
     await writeDefaultConfig(root);
     await _removeStockCounterApp();
 
+    if (!dryRun) {
+      await StackLock.write(
+        root,
+        config,
+        packageVersion: stackchainPackageVersion,
+      );
+    }
+
     _printSummary(writer, config);
+
+    if (!dryRun) {
+      final gate = await QualityGate(
+        root: root,
+        config: config,
+        logger: logger,
+        runAnalyzer: !skipAnalyze,
+      ).run();
+      if (!gate.passed) {
+        logger.warn(
+          'Scaffold written but quality gate reported errors — '
+          'fix issues then run `dart run stackchain sync`.',
+        );
+      }
+    }
+
     return config;
   }
 
@@ -98,9 +130,9 @@ class ProjectGenerator {
       return true;
     }
     // Already a stackchain entrypoint — refresh when --overwrite is set.
-    if (content.contains('configureDependencies') &&
-        content.contains('package:') &&
-        content.contains('/app/app.dart')) {
+    if (content.contains('bootstrap()') ||
+        (content.contains('configureDependencies') &&
+            content.contains('/app/app.dart'))) {
       return overwrite;
     }
     // Unknown / custom main — only touch with --overwrite.
@@ -114,8 +146,9 @@ class ProjectGenerator {
 
   /// Detects Flutter create templates (counter or minimal MyApp).
   static bool _isStockFlutterCounterMain(String content) {
-    if (content.contains('configureDependencies') &&
-        content.contains('/app/app.dart')) {
+    if (content.contains('bootstrap()') ||
+        (content.contains('configureDependencies') &&
+            content.contains('/app/app.dart'))) {
       return false;
     }
 
@@ -190,6 +223,12 @@ class ProjectGenerator {
     } else {
       logger.info('  2. flutter run');
     }
+    logger.info('');
+    logger.info('Evolve later:');
+    logger.info('  dart run stackchain feature <name>   # vertical slice');
+    logger.info('  dart run stackchain sync             # smart router/DI merge');
+    logger.info('  dart run stackchain upgrade          # deps + sync + gate');
+    logger.info('  dart run stackchain migrate --state cubit');
     logger.info('');
   }
 }

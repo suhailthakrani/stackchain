@@ -12,6 +12,7 @@ class CoreTemplates {
     final files = <String, String>{
       ..._errors(),
       ..._utils(),
+      ..._session(),
       ..._di(),
       ..._network(),
       ..._storage(),
@@ -24,6 +25,87 @@ class CoreTemplates {
     }
     return files;
   }
+
+  Map<String, String> _session() {
+    final hasSecure = config.storage.contains(StorageType.secureStorage);
+    final hasPrefs = config.storage.contains(StorageType.sharedPreferences);
+    final imports = <String>[
+      "import 'package:$pkg/core/storage/storage_keys.dart';",
+      if (hasSecure) "import 'package:$pkg/core/storage/secure_storage.dart';",
+      if (hasPrefs) "import 'package:$pkg/core/storage/shared_prefs.dart';",
+    ];
+
+    return {
+      'lib/core/session/session_service.dart': '''
+${imports.join('\n')}
+
+/// Production session boundary — tokens never live in plain UI state.
+class SessionService {
+  SessionService({
+    ${hasSecure ? 'SecureStorageService? secure,' : ''}
+    ${hasPrefs ? 'SharedPrefsService? prefs,' : ''}
+  })${hasSecure || hasPrefs ? ' :' : ''}
+      ${[
+        if (hasSecure) '_secure = secure',
+        if (hasPrefs) '_prefs = prefs',
+      ].join(',\n      ')};
+
+  ${hasSecure ? 'final SecureStorageService? _secure;' : ''}
+  ${hasPrefs ? 'final SharedPrefsService? _prefs;' : ''}
+
+  Future<String?> get accessToken async {
+    ${hasSecure ? '''
+    final fromSecure = await _secure?.read(StorageKeys.accessToken);
+    if (fromSecure != null && fromSecure.isNotEmpty) return fromSecure;
+''' : ''}
+    ${hasPrefs ? 'return _prefs?.getString(StorageKeys.accessToken);' : 'return null;'}
+  }
+
+  Future<String?> get refreshToken async {
+    ${hasSecure ? '''
+    final fromSecure = await _secure?.read(StorageKeys.refreshToken);
+    if (fromSecure != null && fromSecure.isNotEmpty) return fromSecure;
+''' : ''}
+    ${hasPrefs ? 'return _prefs?.getString(StorageKeys.refreshToken);' : 'return null;'}
+  }
+
+  Future<bool> get hasSession async {
+    final token = await accessToken;
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<void> saveSession({
+    required String accessToken,
+    String? refreshToken,
+  }) async {
+    ${hasSecure ? '''
+    await _secure?.write(StorageKeys.accessToken, accessToken);
+    if (refreshToken != null) {
+      await _secure?.write(StorageKeys.refreshToken, refreshToken);
+    }
+''' : hasPrefs ? '''
+    await _prefs?.setString(StorageKeys.accessToken, accessToken);
+    if (refreshToken != null) {
+      await _prefs?.setString(StorageKeys.refreshToken, refreshToken);
+    }
+''' : ''}
+  }
+
+  Future<void> clear() async {
+    ${hasSecure ? '''
+    await _secure?.delete(StorageKeys.accessToken);
+    await _secure?.delete(StorageKeys.refreshToken);
+''' : ''}
+    ${hasPrefs ? '''
+    await _prefs?.remove(StorageKeys.accessToken);
+    await _prefs?.remove(StorageKeys.refreshToken);
+''' : ''}
+  }
+}
+''',
+    };
+  }
+
 
   Map<String, String> _errors() => {
         'lib/core/errors/app_exception.dart': '''
@@ -242,11 +324,26 @@ import 'package:get/get.dart';
 import 'package:logger/logger.dart';
 
 import 'package:$pkg/core/errors/error_handler.dart';
-${config.network == NetworkClient.dio ? "import 'package:$pkg/core/network/api_client.dart';\nimport 'package:$pkg/core/network/dio_client.dart';\n" : ''}${config.modules.coreServices ? "import 'package:$pkg/core/services/connectivity_service.dart';\nimport 'package:$pkg/core/services/logger_service.dart';\n" : ''}
+import 'package:$pkg/core/session/session_service.dart';
+${config.network == NetworkClient.dio ? "import 'package:$pkg/core/network/api_client.dart';\nimport 'package:$pkg/core/network/dio_client.dart';\n" : ''}${config.storage.contains(StorageType.secureStorage) ? "import 'package:$pkg/core/storage/secure_storage.dart';\n" : ''}${config.storage.contains(StorageType.sharedPreferences) ? "import 'package:$pkg/core/storage/shared_prefs.dart';\n" : ''}${config.modules.coreServices ? "import 'package:$pkg/core/services/connectivity_service.dart';\nimport 'package:$pkg/core/services/logger_service.dart';\n" : ''}
 Future<void> configureDependencies() async {
   Get.put<Logger>(Logger(), permanent: true);
   Get.put<ErrorHandler>(ErrorHandler(logger: Get.find()), permanent: true);
-${config.network == NetworkClient.dio ? '''  Get.lazyPut<DioClient>(DioClient.new, fenix: true);
+${config.storage.contains(StorageType.sharedPreferences) ? '''  final prefs = await SharedPrefsService.create();
+  Get.put<SharedPrefsService>(prefs, permanent: true);
+''' : ''}${config.storage.contains(StorageType.secureStorage) ? '''  Get.put<SecureStorageService>(SecureStorageService(), permanent: true);
+''' : ''}  Get.put<SessionService>(
+    SessionService(
+${config.storage.contains(StorageType.secureStorage) ? '      secure: Get.find(),\n' : ''}${config.storage.contains(StorageType.sharedPreferences) ? '      prefs: Get.find(),\n' : ''}    ),
+    permanent: true,
+  );
+${config.network == NetworkClient.dio ? '''  Get.lazyPut<DioClient>(
+    () => DioClient(
+      tokenProvider: () => Get.find<SessionService>().accessToken,
+      onUnauthorized: () => Get.find<SessionService>().clear(),
+    ),
+    fenix: true,
+  );
   Get.lazyPut<ApiClient>(() => ApiClient(Get.find()), fenix: true);
 ''' : ''}${config.modules.coreServices ? '''  Get.lazyPut<ConnectivityService>(ConnectivityService.new, fenix: true);
   Get.lazyPut<LoggerService>(() => LoggerService(Get.find()), fenix: true);
@@ -310,6 +407,7 @@ abstract class CoreModule {
       "import 'package:get_it/get_it.dart';",
       "import 'package:logger/logger.dart';",
       "import 'package:$pkg/core/errors/error_handler.dart';",
+      "import 'package:$pkg/core/session/session_service.dart';",
     };
 
     final regs = StringBuffer()
@@ -318,18 +416,6 @@ abstract class CoreModule {
         '  getIt.registerLazySingleton<ErrorHandler>('
         '() => ErrorHandler(logger: getIt()));',
       );
-
-    if (config.network == NetworkClient.dio) {
-      importSet
-        ..add("import 'package:$pkg/core/network/api_client.dart';")
-        ..add("import 'package:$pkg/core/network/dio_client.dart';");
-      regs
-        ..writeln('  getIt.registerLazySingleton<DioClient>(DioClient.new);')
-        ..writeln(
-          '  getIt.registerLazySingleton<ApiClient>('
-          '() => ApiClient(getIt<DioClient>()));',
-        );
-    }
 
     if (config.storage.contains(StorageType.sharedPreferences)) {
       importSet.add(
@@ -349,6 +435,34 @@ abstract class CoreModule {
         '  getIt.registerLazySingleton<SecureStorageService>('
         'SecureStorageService.new);',
       );
+    }
+
+    final sessionArgs = <String>[
+      if (config.storage.contains(StorageType.secureStorage)) 'secure: getIt()',
+      if (config.storage.contains(StorageType.sharedPreferences))
+        'prefs: getIt()',
+    ];
+    regs.writeln(
+      '  getIt.registerLazySingleton<SessionService>('
+      '() => SessionService(${sessionArgs.join(', ')}));',
+    );
+
+    if (config.network == NetworkClient.dio) {
+      importSet
+        ..add("import 'package:$pkg/core/network/api_client.dart';")
+        ..add("import 'package:$pkg/core/network/dio_client.dart';");
+      regs
+        ..writeln(
+          '  getIt.registerLazySingleton<DioClient>('
+          '() => DioClient(\n'
+          '    tokenProvider: () => getIt<SessionService>().accessToken,\n'
+          '    onUnauthorized: () => getIt<SessionService>().clear(),\n'
+          '  ));',
+        )
+        ..writeln(
+          '  getIt.registerLazySingleton<ApiClient>('
+          '() => ApiClient(getIt<DioClient>()));',
+        );
     }
 
     if (config.modules.coreServices) {
@@ -387,7 +501,33 @@ abstract class CoreModule {
           regs.writeln(
             '  getIt.registerFactory<${pascal}Cubit>(${pascal}Cubit.new);',
           );
+        } else if (config.stateManagement == StateManagement.rxdart) {
+          importSet.add(
+            "import 'package:$pkg/features/$f/presentation/controllers/${f}_controller.dart';",
+          );
+          regs.writeln(
+            '  getIt.registerFactory<${pascal}Controller>('
+            '${pascal}Controller.new);',
+          );
         }
+      }
+    }
+
+    // Split core vs feature registrations for smart sync merges.
+    final coreRegs = StringBuffer();
+    final featureRegs = StringBuffer();
+    for (final line in regs.toString().split('\n')) {
+      if (line.trim().isEmpty) continue;
+      final isFeature = config.features.any(
+        (f) =>
+            line.contains('${_pascal(f)}Bloc') ||
+            line.contains('${_pascal(f)}Cubit') ||
+            line.contains('${_pascal(f)}Controller'),
+      );
+      if (isFeature) {
+        featureRegs.writeln(line);
+      } else {
+        coreRegs.writeln(line);
       }
     }
 
@@ -399,7 +539,10 @@ $imports
 final getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
-$regs
+  // <stackchain:core>
+$coreRegs  // </stackchain:core>
+  // <stackchain:features>
+$featureRegs  // </stackchain:features>
 }
 ''';
   }
@@ -520,8 +663,9 @@ class ErrorInterceptor extends Interceptor {
 import 'package:dio/dio.dart';
 
 class RetryInterceptor extends Interceptor {
-  RetryInterceptor({this.maxRetries = 2});
+  RetryInterceptor(this._dio, {this.maxRetries = 2});
 
+  final Dio _dio;
   final int maxRetries;
 
   @override
@@ -538,10 +682,32 @@ class RetryInterceptor extends Interceptor {
     if (retriable && retryCount < maxRetries) {
       err.requestOptions.extra['retryCount'] = retryCount + 1;
       try {
-        final response = await Dio().fetch(err.requestOptions);
+        // Reuse the same client so auth headers / baseUrl survive retries.
+        final response = await _dio.fetch(err.requestOptions);
         handler.resolve(response);
         return;
       } catch (_) {/* fall through */}
+    }
+    handler.next(err);
+  }
+}
+''',
+      'lib/core/network/interceptors/unauthorized_interceptor.dart': '''
+import 'package:dio/dio.dart';
+
+/// Clears session on 401 so route guards bounce to login.
+class UnauthorizedInterceptor extends Interceptor {
+  UnauthorizedInterceptor({required this.onUnauthorized});
+
+  final Future<void> Function() onUnauthorized;
+
+  @override
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    if (err.response?.statusCode == 401) {
+      await onUnauthorized();
     }
     handler.next(err);
   }
@@ -556,9 +722,14 @@ import 'interceptors/auth_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
 import 'interceptors/logger_interceptor.dart';
 import 'interceptors/retry_interceptor.dart';
+import 'interceptors/unauthorized_interceptor.dart';
 
 class DioClient {
-  DioClient({Dio? dio}) : _dio = dio ?? Dio() {
+  DioClient({
+    Dio? dio,
+    Future<String?> Function()? tokenProvider,
+    Future<void> Function()? onUnauthorized,
+  }) : _dio = dio ?? Dio() {
     _dio
       ..options = BaseOptions(
         baseUrl: AppEnvironment.apiBaseUrl,
@@ -567,10 +738,12 @@ class DioClient {
         headers: {'Accept': 'application/json'},
       )
       ..interceptors.addAll([
-        AuthInterceptor(),
-        RetryInterceptor(),
+        AuthInterceptor(tokenProvider: tokenProvider),
+        if (onUnauthorized != null)
+          UnauthorizedInterceptor(onUnauthorized: onUnauthorized),
+        RetryInterceptor(_dio),
         ErrorInterceptor(),
-        createLoggerInterceptor(),
+        if (!AppEnvironment.isProduction) createLoggerInterceptor(),
       ]);
   }
 

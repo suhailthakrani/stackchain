@@ -46,8 +46,10 @@ void main() {
       };
 
       expect(files.keys, contains('lib/main.dart'));
+      expect(files.keys, contains('lib/bootstrap.dart'));
       expect(files.keys, contains('lib/app/app.dart'));
       expect(files.keys, contains('lib/core/network/dio_client.dart'));
+      expect(files.keys, contains('lib/core/session/session_service.dart'));
       expect(
         files.keys,
         contains('lib/features/home/presentation/pages/home_page.dart'),
@@ -56,8 +58,13 @@ void main() {
         files.keys,
         contains('lib/features/auth/presentation/bloc/auth_bloc.dart'),
       );
-      expect(files['lib/main.dart'], contains('configureDependencies'));
+      expect(files['lib/bootstrap.dart'], contains('configureDependencies'));
+      expect(
+        files['lib/core/network/dio_client.dart'],
+        contains('tokenProvider'),
+      );
     });
+
     test('cubit feature generates cubit files', () {
       final config = StackchainConfig(
         packageName: 'demo',
@@ -73,6 +80,30 @@ void main() {
         files['lib/features/home/presentation/pages/home_page.dart'],
         contains('Cubit'),
       );
+    });
+
+    test('rxdart feature generates BehaviorSubject controller', () {
+      final config = StackchainConfig(
+        packageName: 'demo',
+        stateManagement: StateManagement.rxdart,
+        features: const ['home'],
+      );
+      final files = FeatureTemplates(config).generate();
+      expect(
+        files.keys,
+        contains(
+          'lib/features/home/presentation/controllers/home_controller.dart',
+        ),
+      );
+      expect(
+        files['lib/features/home/presentation/controllers/home_controller.dart'],
+        contains('BehaviorSubject'),
+      );
+      expect(
+        files['lib/features/home/presentation/pages/home_page.dart'],
+        contains('StreamBuilder'),
+      );
+      expect(config.inferredDependencies().keys, contains('rxdart'));
     });
   });
 }

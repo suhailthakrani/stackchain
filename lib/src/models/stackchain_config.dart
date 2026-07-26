@@ -11,6 +11,9 @@ class ModulesConfig {
     this.darkMode = true,
     this.coreServices = true,
     this.coreWidgets = true,
+    this.flavors = true,
+    this.ci = true,
+    this.strictQuality = false,
   });
 
   final bool localization;
@@ -21,6 +24,15 @@ class ModulesConfig {
   final bool darkMode;
   final bool coreServices;
   final bool coreWidgets;
+
+  /// Generate flavor entrypoints + dart-define environment.
+  final bool flavors;
+
+  /// Generate GitHub Actions CI workflow.
+  final bool ci;
+
+  /// Quality gate treats analyzer issues as errors.
+  final bool strictQuality;
 
   factory ModulesConfig.fromMap(Map<dynamic, dynamic>? map) {
     if (map == null) return const ModulesConfig();
@@ -33,6 +45,9 @@ class ModulesConfig {
       darkMode: map['dark_mode'] as bool? ?? true,
       coreServices: map['core_services'] as bool? ?? true,
       coreWidgets: map['core_widgets'] as bool? ?? true,
+      flavors: map['flavors'] as bool? ?? true,
+      ci: map['ci'] as bool? ?? true,
+      strictQuality: map['strict_quality'] as bool? ?? false,
     );
   }
 }
@@ -51,7 +66,9 @@ class StackchainConfig {
     this.features = const ['home'],
     ModulesConfig? modules,
     this.packageName,
-  })  : storage = storage ?? const [StorageType.sharedPreferences],
+    this.preset,
+  })  : storage = storage ??
+            const [StorageType.sharedPreferences, StorageType.secureStorage],
         modules = modules ?? const ModulesConfig();
 
   final Architecture architecture;
@@ -65,6 +82,9 @@ class StackchainConfig {
 
   /// Dart package name of the host Flutter app (from pubspec).
   final String? packageName;
+
+  /// Optional blueprint id from [PresetRegistry] (e.g. production_bloc).
+  final String? preset;
 
   /// Defaults used when no YAML exists.
   factory StackchainConfig.defaults({String? packageName}) => StackchainConfig(
@@ -81,6 +101,7 @@ class StackchainConfig {
     List<String>? features,
     ModulesConfig? modules,
     String? packageName,
+    String? preset,
   }) {
     return StackchainConfig(
       architecture: architecture ?? this.architecture,
@@ -92,6 +113,7 @@ class StackchainConfig {
       features: features ?? this.features,
       modules: modules ?? this.modules,
       packageName: packageName ?? this.packageName,
+      preset: preset ?? this.preset,
     );
   }
 
@@ -114,6 +136,8 @@ class StackchainConfig {
         deps['provider'] = '^6.1.2';
       case StateManagement.getx:
         deps['get'] = '^4.6.6';
+      case StateManagement.rxdart:
+        deps['rxdart'] = '^0.28.0';
     }
 
     switch (routing) {

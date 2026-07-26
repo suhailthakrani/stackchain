@@ -107,8 +107,9 @@ const _defaultYaml = '''
 # Most settings are optional — defaults are production-ready.
 
 stackchain:
+  # preset: production_bloc       # production_riverpod | clean_cubit | firebase_bloc | ...
   # architecture: feature_first   # feature_first | clean | mvvm | mvc
-  # state_management: bloc        # bloc | cubit | riverpod | provider | getx
+  # state_management: bloc        # bloc | cubit | riverpod | provider | getx | rxdart
   # routing: go_router            # go_router | auto_route | navigator | getx
   # di: get_it                    # get_it | injectable | getx
   # network: dio

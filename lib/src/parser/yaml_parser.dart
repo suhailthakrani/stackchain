@@ -2,6 +2,7 @@ import 'package:yaml/yaml.dart';
 
 import '../models/enums.dart';
 import '../models/stackchain_config.dart';
+import '../presets/preset_registry.dart';
 
 /// Parses and validates `stackchain.yaml`.
 class YamlParser {
@@ -40,13 +41,20 @@ class YamlParser {
     YamlMap map, {
     String? packageName,
   }) {
-    final storageRaw = map['storage'];
+    final user = _yamlToLooseMap(map);
+    final presetId = user.remove('preset') as String?;
+    final expanded = const PresetRegistry().expand(presetId, user);
+
+    final storageRaw = expanded['storage'];
     final List<StorageType> storage;
     if (storageRaw == null) {
-      storage = const [StorageType.sharedPreferences];
+      storage = const [
+        StorageType.sharedPreferences,
+        StorageType.secureStorage,
+      ];
     } else if (storageRaw is String) {
       storage = [StorageType.fromYaml(storageRaw)];
-    } else if (storageRaw is YamlList) {
+    } else if (storageRaw is List) {
       storage = storageRaw.map((e) => StorageType.fromYaml('$e')).toList();
     } else {
       throw const FormatException(
@@ -54,11 +62,11 @@ class YamlParser {
       );
     }
 
-    final featuresRaw = map['features'];
+    final featuresRaw = expanded['features'];
     final List<String> features;
     if (featuresRaw == null) {
       features = const ['home'];
-    } else if (featuresRaw is YamlList) {
+    } else if (featuresRaw is List) {
       features = featuresRaw
           .map((e) => '$e'.trim())
           .where((e) => e.isNotEmpty)
@@ -69,8 +77,8 @@ class YamlParser {
     }
 
     final modulesMap = <dynamic, dynamic>{};
-    final nested = map['modules'];
-    if (nested is YamlMap) {
+    final nested = expanded['modules'];
+    if (nested is Map) {
       modulesMap.addAll(Map<dynamic, dynamic>.from(nested));
     }
     for (final key in [
@@ -80,16 +88,23 @@ class YamlParser {
       'crashlytics',
       'biometrics',
       'dark_mode',
+      'core_services',
+      'core_widgets',
+      'flavors',
+      'ci',
+      'strict_quality',
     ]) {
-      if (map.containsKey(key) && !modulesMap.containsKey(key)) {
-        modulesMap[key] = map[key];
+      if (expanded.containsKey(key) && !modulesMap.containsKey(key)) {
+        modulesMap[key] = expanded[key];
       }
     }
 
     // Smart defaults when GetX is selected.
-    final state = StateManagement.fromYaml(map['state_management'] as String?);
-    final routingRaw = map['routing'] as String?;
-    final diRaw = map['di'] as String?;
+    final state = StateManagement.fromYaml(
+      expanded['state_management'] as String?,
+    );
+    final routingRaw = expanded['routing'] as String?;
+    final diRaw = expanded['di'] as String?;
 
     final routing = routingRaw != null
         ? Routing.fromYaml(routingRaw)
@@ -100,15 +115,35 @@ class YamlParser {
         : (state == StateManagement.getx ? DiType.getx : DiType.getIt);
 
     return StackchainConfig(
-      architecture: Architecture.fromYaml(map['architecture'] as String?),
+      architecture: Architecture.fromYaml(expanded['architecture'] as String?),
       stateManagement: state,
       routing: routing,
       di: di,
-      network: NetworkClient.fromYaml(map['network'] as String?),
+      network: NetworkClient.fromYaml(expanded['network'] as String?),
       storage: storage,
       features: features,
       modules: ModulesConfig.fromMap(modulesMap),
       packageName: packageName,
+      preset: presetId,
     );
+  }
+
+  static Map<String, Object?> _yamlToLooseMap(YamlMap map) {
+    final out = <String, Object?>{};
+    for (final entry in map.entries) {
+      final key = '${entry.key}';
+      final value = entry.value;
+      if (value is YamlMap) {
+        out[key] = _yamlToLooseMap(value);
+      } else if (value is YamlList) {
+        out[key] = value.map((e) {
+          if (e is YamlMap) return _yamlToLooseMap(e);
+          return e;
+        }).toList();
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
   }
 }

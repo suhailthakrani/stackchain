@@ -41,6 +41,19 @@ stackchain:
       expect(config.inferredDependencies().keys, contains('flutter_bloc'));
     });
 
+    test('rxdart is a first-class state option', () {
+      const yaml = '''
+stackchain:
+  state_management: rxdart
+  features:
+    - home
+''';
+      final config = YamlParser.parse(yaml);
+      expect(config.stateManagement, StateManagement.rxdart);
+      expect(config.stateManagement.usesRxDart, isTrue);
+      expect(config.inferredDependencies().keys, contains('rxdart'));
+    });
+
     test('getx smart-defaults routing and di', () {
       const yaml = '''
 stackchain:

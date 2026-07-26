@@ -10,7 +10,8 @@ class AppTemplates {
   String get pkg => config.packageName ?? 'app';
 
   Map<String, String> generate() {
-    return {
+    final files = <String, String>{
+      'lib/bootstrap.dart': _bootstrap(),
       'lib/main.dart': _main(),
       'lib/app/app.dart': _app(),
       'lib/app/theme/app_colors.dart': _colors(),
@@ -21,9 +22,43 @@ class AppTemplates {
       'lib/app/config/constants.dart': _constants(),
       'lib/app/config/environment.dart': _environment(),
     };
+    if (config.modules.flavors) {
+      files.addAll(_flavorMains());
+    }
+    return files;
   }
 
-  String _main() {
+  Map<String, String> _flavorMains() => {
+        'lib/main_dev.dart': '''
+/// Dev flavor entrypoint.
+/// flutter run -t lib/main_dev.dart --dart-define=FLAVOR=dev
+library;
+
+import 'bootstrap.dart';
+
+Future<void> main() => bootstrap();
+''',
+        'lib/main_staging.dart': '''
+/// Staging flavor entrypoint.
+/// flutter run -t lib/main_staging.dart --dart-define=FLAVOR=staging
+library;
+
+import 'bootstrap.dart';
+
+Future<void> main() => bootstrap();
+''',
+        'lib/main_prod.dart': '''
+/// Production flavor entrypoint.
+/// flutter run -t lib/main_prod.dart --dart-define=FLAVOR=prod --dart-define=API_BASE_URL=https://api.example.com
+library;
+
+import 'bootstrap.dart';
+
+Future<void> main() => bootstrap();
+''',
+      };
+
+  String _bootstrap() {
     final imports = <String>{
       "import 'package:flutter/material.dart';",
       "import 'package:$pkg/app/app.dart';",
@@ -39,10 +74,9 @@ class AppTemplates {
 
     final firebase = config.modules.firebase
         ? '''
-  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 '''
-        : '  WidgetsFlutterBinding.ensureInitialized();\n';
+        : '';
 
     final riverpod = config.stateManagement == StateManagement.riverpod;
     final sortedImports = (imports.toList()..sort()).join('\n');
@@ -50,11 +84,21 @@ class AppTemplates {
     return '''
 $sortedImports
 
-Future<void> main() async {
+/// Shared startup used by all flavor entrypoints.
+Future<void> bootstrap() async {
+  WidgetsFlutterBinding.ensureInitialized();
 $firebase
   await configureDependencies();
   runApp(${riverpod ? 'const ProviderScope(child: App())' : 'const App()'});
 }
+''';
+  }
+
+  String _main() {
+    return '''
+import 'bootstrap.dart';
+
+Future<void> main() => bootstrap();
 ''';
   }
 
@@ -302,18 +346,38 @@ abstract final class AppConstants {
 ''';
 
   String _environment() => '''
+/// Compile-time environment via `--dart-define`.
+///
+/// Examples:
+///   flutter run --dart-define=FLAVOR=dev
+///   flutter run -t lib/main_prod.dart --dart-define=FLAVOR=prod \\
+///     --dart-define=API_BASE_URL=https://api.example.com
 enum Environment { dev, staging, prod }
 
 abstract final class AppEnvironment {
-  static Environment current = Environment.dev;
+  static const String _flavor =
+      String.fromEnvironment('FLAVOR', defaultValue: 'dev');
+  static const String _apiOverride =
+      String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
-  static String get apiBaseUrl => switch (current) {
-        Environment.dev => 'https://api.dev.example.com',
-        Environment.staging => 'https://api.staging.example.com',
-        Environment.prod => 'https://api.example.com',
+  static Environment get current => switch (_flavor) {
+        'prod' || 'production' => Environment.prod,
+        'staging' || 'stage' => Environment.staging,
+        _ => Environment.dev,
       };
 
+  static String get apiBaseUrl {
+    if (_apiOverride.isNotEmpty) return _apiOverride;
+    return switch (current) {
+      Environment.dev => 'https://api.dev.example.com',
+      Environment.staging => 'https://api.staging.example.com',
+      Environment.prod => 'https://api.example.com',
+    };
+  }
+
   static bool get isProduction => current == Environment.prod;
+  static bool get isDev => current == Environment.dev;
+  static String get flavorName => _flavor;
 }
 ''';
 

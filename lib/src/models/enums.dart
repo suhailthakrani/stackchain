@@ -26,7 +26,8 @@ enum StateManagement {
   cubit('cubit'),
   riverpod('riverpod'),
   provider('provider'),
-  getx('getx');
+  getx('getx'),
+  rxdart('rxdart');
 
   const StateManagement(this.yaml);
   final String yaml;
@@ -37,7 +38,7 @@ enum StateManagement {
       (e) => e.yaml == value,
       orElse: () => throw FormatException(
         'Unknown state_management "$value". '
-        'Use: bloc, cubit, riverpod, provider, getx',
+        'Use: bloc, cubit, riverpod, provider, getx, rxdart',
       ),
     );
   }
@@ -45,6 +46,9 @@ enum StateManagement {
   /// Whether this stack uses the flutter_bloc package.
   bool get usesFlutterBloc =>
       this == StateManagement.bloc || this == StateManagement.cubit;
+
+  /// Whether presentation uses disposable stream controllers.
+  bool get usesRxDart => this == StateManagement.rxdart;
 }
 
 /// Supported routers.

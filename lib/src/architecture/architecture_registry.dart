@@ -138,6 +138,7 @@ String _stateFolder(StateManagement sm) {
     case StateManagement.provider:
       return 'providers';
     case StateManagement.getx:
+    case StateManagement.rxdart:
       return 'controllers';
   }
 }

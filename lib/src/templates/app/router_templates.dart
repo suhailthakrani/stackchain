@@ -24,26 +24,60 @@ class RouterTemplates {
   }
 
   String _routesOnly() {
-    final buffer = StringBuffer()..writeln('abstract final class AppRoutes {');
+    final buffer = StringBuffer()
+      ..writeln('abstract final class AppRoutes {')
+      ..writeln('  // <stackchain:routes>');
     for (final f in config.features) {
       final path = f == 'home' || f == 'splash'
           ? (f == 'splash' ? '/splash' : '/')
           : '/$f';
-      final name = f;
-      buffer.writeln("  static const String $name = '$path';");
+      buffer.writeln("  static const String $f = '$path';");
     }
-    buffer.writeln('}');
+    buffer
+      ..writeln('  // </stackchain:routes>')
+      ..writeln('}');
     return buffer.toString();
   }
 
-  String _guards() => '''
-import 'package:flutter/foundation.dart';
+  String _guards() {
+    final hasAuth = config.features.contains('auth');
+    final diImport = config.di == DiType.getx
+        ? "import 'package:get/get.dart';\n"
+        : "import 'package:$pkg/core/di/injection.dart';\n";
+    final sessionLookup = config.di == DiType.getx
+        ? 'Get.find<SessionService>()'
+        : 'getIt<SessionService>()';
 
-/// Placeholder auth gate — wire to your session/token store.
+    return '''
+import 'package:flutter/foundation.dart';
+$diImport
+import 'package:$pkg/core/session/session_service.dart';
+
+/// Auth gate backed by [SessionService] (secure token store).
 abstract final class RouteGuards {
-  static bool get isAuthenticated {
-    // TODO: read from secure storage / auth repository
-    return true;
+  static Future<bool> get isAuthenticated async {
+    try {
+      return await $sessionLookup.hasSession;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool isPublicLocation(String location) {
+    const publicPrefixes = <String>{
+      '/auth',
+      '/splash',
+      '/onboarding',
+    };
+    return publicPrefixes.any(
+      (p) => location == p || location.startsWith('\$p/'),
+    );
+  }
+
+  static Future<void> clearSession() async {
+    try {
+      await $sessionLookup.clear();
+    } catch (_) {/* DI not ready */}
   }
 
   static void debugAuth(bool value) {
@@ -52,8 +86,10 @@ abstract final class RouteGuards {
     }
   }
 }
-''';
 
+${hasAuth ? '' : '// Tip: add an `auth` feature to enable login redirects.\n'}
+''';
+  }
   String _router() {
     if (config.routing == Routing.autoRoute) {
       return _autoRouteStub();
@@ -97,7 +133,9 @@ abstract final class AppRouter {
   static const String initial = $initial;
 
   static final List<GetPage<dynamic>> pages = [
+    // <stackchain:routes>
 $pages
+    // </stackchain:routes>
   ];
 }
 ''';
@@ -137,11 +175,28 @@ $pages
             : 'AppRoutes.${config.features.first}');
 
     final imports = importLines.join('\n');
+    final hasAuth = config.features.contains('auth');
+    final redirect = hasAuth
+        ? '''
+    redirect: (context, state) async {
+      final loggedIn = await RouteGuards.isAuthenticated;
+      final loc = state.matchedLocation;
+      final onAuth = loc == AppRoutes.auth || loc.startsWith('\${AppRoutes.auth}/');
+      if (!loggedIn && !RouteGuards.isPublicLocation(loc) && !onAuth) {
+        return AppRoutes.auth;
+      }
+      if (loggedIn && onAuth) {
+        return ${config.features.contains('home') ? 'AppRoutes.home' : 'AppRoutes.${config.features.firstWhere((f) => f != 'auth', orElse: () => config.features.first)}'};
+      }
+      return null;
+    },'''
+        : '';
 
     return '''
 $imports
 
 import 'app_routes.dart';
+import 'route_guards.dart';
 
 abstract final class AppRouter {
   static final GlobalKey<NavigatorState> navigatorKey =
@@ -150,8 +205,11 @@ abstract final class AppRouter {
   static final GoRouter router = GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: $initial,
+$redirect
     routes: [
+      // <stackchain:routes>
 $routes
+      // </stackchain:routes>
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(child: Text('Route not found: \${state.uri}')),
@@ -182,7 +240,9 @@ part 'app_router.gr.dart';
 class AppRouter extends RootStackRouter {
   @override
   List<AutoRoute> get routes => [
+        // <stackchain:routes>
 $routes
+        // </stackchain:routes>
       ];
 }
 ''';

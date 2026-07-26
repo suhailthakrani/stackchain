@@ -17,6 +17,10 @@ class ModuleTemplates {
       'analysis_options.yaml': _analysisOptions(),
     };
 
+    if (config.modules.ci) {
+      files['.github/workflows/stackchain_ci.yml'] = _ciWorkflow();
+    }
+
     if (config.modules.localization) {
       files.addAll({
         'l10n.yaml': '''
@@ -102,6 +106,14 @@ void main() {
   String _analysisOptions() => '''
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
+  exclude:
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+    - '**/*.gr.dart'
+
 linter:
   rules:
     prefer_const_constructors: true
@@ -109,5 +121,34 @@ linter:
     prefer_final_locals: true
     avoid_print: true
     directives_ordering: true
+    unawaited_futures: true
+    cancel_subscriptions: true
+    close_sinks: true
+    only_throw_errors: true
+    avoid_dynamic_calls: true
+    depend_on_referenced_packages: true
+''';
+
+  String _ciWorkflow() => '''
+name: stackchain CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --set-exit-if-changed .
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
 ''';
 }

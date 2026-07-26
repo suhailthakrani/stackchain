@@ -102,15 +102,25 @@ void main() {
       await ProjectGenerator(
         root: temp.path,
         logger: Logger(),
+        skipAnalyze: true,
       ).run();
 
       final main =
           await File(p.join(temp.path, 'lib/main.dart')).readAsString();
-      expect(main, contains('configureDependencies'));
-      expect(main, contains('/app/app.dart'));
+      expect(main, contains('bootstrap()'));
       expect(main, isNot(contains('_counter')));
       expect(main, isNot(contains('MyHomePage')));
 
+      final boot =
+          await File(p.join(temp.path, 'lib/bootstrap.dart')).readAsString();
+      expect(boot, contains('configureDependencies'));
+      expect(boot, contains('/app/app.dart'));
+
+      expect(
+        await File(p.join(temp.path, 'lib/core/session/session_service.dart'))
+            .exists(),
+        isTrue,
+      );
       expect(
         await File(p.join(temp.path, 'test/widget_test.dart')).exists(),
         isFalse,
@@ -119,6 +129,15 @@ void main() {
         await File(p.join(temp.path, 'lib/app/app.dart')).exists(),
         isTrue,
       );
+      expect(
+        await File(p.join(temp.path, '.stackchain/lock.yaml')).exists(),
+        isTrue,
+      );
+
+      final router = await File(
+        p.join(temp.path, 'lib/app/router/app_router.dart'),
+      ).readAsString();
+      expect(router, contains('<stackchain:routes>'));
     });
   });
 }
