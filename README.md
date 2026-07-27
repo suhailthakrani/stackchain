@@ -8,6 +8,8 @@ Config-driven Flutter scaffolding you keep as a **dev dependency** — not a one
 
 Set your stack in `stackchain.yaml`, generate a runnable app, add **vertical slices** as you build, then **sync / upgrade / migrate** as the project evolves. Every generate runs a **quality gate**.
 
+**Docs:** [suhailthakrani.github.io/stackchain-docs](https://suhailthakrani.github.io/stackchain-docs/) · **pub.dev:** [pub.dev/packages/stackchain](https://pub.dev/packages/stackchain)
+
 ## Quick start
 
 Requires an existing Flutter app (`flutter create my_app`).
@@ -26,7 +28,7 @@ Or in `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  stackchain: ^1.1.1
+  stackchain: ^1.1.2
 ```
 
 No config file needed on first run — production defaults are applied automatically (including secure storage, flavors, and CI).

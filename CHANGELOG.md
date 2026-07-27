@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Point homepage / documentation to the official docs site: https://suhailthakrani.github.io/stackchain-docs/
+
 ## 1.1.1
 
 - `migrate` now cleans up the old stack: deletes the state files it generated and drops packages the new stack no longer needs (`--keep-old` to opt out)

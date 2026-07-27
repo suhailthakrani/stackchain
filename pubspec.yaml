@@ -3,11 +3,11 @@ description: >-
   Config-driven Flutter scaffolding that evolves with your app. Presets,
   vertical slices, smart merges, upgrade/migrate, and a quality gate on
   every generate.
-version: 1.1.1
-homepage: https://github.com/suhailthakrani/stackchain
+version: 1.1.2
+homepage: https://suhailthakrani.github.io/stackchain-docs/
 repository: https://github.com/suhailthakrani/stackchain
 issue_tracker: https://github.com/suhailthakrani/stackchain/issues
-documentation: https://github.com/suhailthakrani/stackchain#readme
+documentation: https://suhailthakrani.github.io/stackchain-docs/
 screenshots:
   - description: Stackchain — config-driven Flutter scaffolding
     path: assets/stackchain_logo.png

@@ -24,7 +24,7 @@ class MigrationEngine {
     this.overwritePresentation = true,
     this.skipAnalyze = false,
     this.cleanup = true,
-    this.packageVersion = '1.1.1',
+    this.packageVersion = '1.1.2',
   }) : logger = logger ?? Logger();
 
   final String root;
