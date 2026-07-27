@@ -1,9 +1,9 @@
 name: stackchain
 description: >-
-  Config-driven Flutter scaffolding that evolves with your app. Presets,
-  vertical slices, smart merges, upgrade/migrate, and a quality gate on
+  Flutter scaffolding from a simple config. Use presets, add full features,
+  keep router and DI in sync, migrate safely, and run quality checks on
   every generate.
-version: 1.1.2
+version: 1.1.3
 homepage: https://suhailthakrani.github.io/stackchain-docs/
 repository: https://github.com/suhailthakrani/stackchain
 issue_tracker: https://github.com/suhailthakrani/stackchain/issues

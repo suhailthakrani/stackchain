@@ -137,6 +137,33 @@ Future<void> run(List<String> args) async {
       ),
   );
   parser.addCommand(
+    'remove',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('skip-analyze', negatable: false)
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Feature name (or pass as positional).',
+      ),
+  );
+  parser.addCommand(
+    'rename',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('skip-analyze', negatable: false)
+      ..addOption(
+        'from',
+        help: 'Current feature name (or pass as first positional).',
+      )
+      ..addOption(
+        'to',
+        help: 'New feature name (or pass as second positional).',
+      ),
+  );
+  parser.addCommand(
     'new',
     ArgParser()..addFlag('help', abbr: 'h', negatable: false),
   );
@@ -286,6 +313,52 @@ Future<void> run(List<String> args) async {
         if (logger.verbose) logger.detail(st.toString());
         exitCode = 1;
       }
+    case 'remove':
+      final name = _resolveName(command);
+      if (command['help'] == true) {
+        _printHelp(parser, const ['remove']);
+        return;
+      }
+      if (name == null) {
+        _printHelp(parser, const ['remove']);
+        return;
+      }
+      try {
+        final report = await FeatureCommand(
+          root: root,
+          logger: logger,
+          dryRun: dryRun,
+          skipAnalyze: skipAnalyze,
+        ).remove(name);
+        if (!report.quality.passed) exitCode = 1;
+      } catch (e, st) {
+        logger.error(e.toString());
+        if (logger.verbose) logger.detail(st.toString());
+        exitCode = 1;
+      }
+    case 'rename':
+      if (command['help'] == true) {
+        _printHelp(parser, const ['rename']);
+        return;
+      }
+      final fromTo = _resolveRename(command);
+      if (fromTo == null) {
+        _printHelp(parser, const ['rename']);
+        return;
+      }
+      try {
+        final report = await FeatureCommand(
+          root: root,
+          logger: logger,
+          dryRun: dryRun,
+          skipAnalyze: skipAnalyze,
+        ).rename(fromTo.$1, fromTo.$2);
+        if (!report.quality.passed) exitCode = 1;
+      } catch (e, st) {
+        logger.error(e.toString());
+        if (logger.verbose) logger.detail(st.toString());
+        exitCode = 1;
+      }
     case 'new':
       if (command['help'] == true) {
         _printHelp(parser, const ['new']);
@@ -301,6 +374,23 @@ String? _resolveName(ArgResults command) {
   final named = command['name'] as String?;
   if (named != null && named.trim().isNotEmpty) return named.trim();
   if (command.rest.isNotEmpty) return command.rest.first.trim();
+  return null;
+}
+
+(String, String)? _resolveRename(ArgResults command) {
+  final fromOpt = (command['from'] as String?)?.trim();
+  final toOpt = (command['to'] as String?)?.trim();
+  if (fromOpt != null &&
+      fromOpt.isNotEmpty &&
+      toOpt != null &&
+      toOpt.isNotEmpty) {
+    return (fromOpt, toOpt);
+  }
+  if (command.rest.length >= 2) {
+    final from = command.rest[0].trim();
+    final to = command.rest[1].trim();
+    if (from.isNotEmpty && to.isNotEmpty) return (from, to);
+  }
   return null;
 }
 
@@ -673,6 +763,46 @@ Examples:
   dart run stackchain feature auth
   dart run stackchain add notifications
 ''');
+    case 'remove':
+      stdout.writeln('''
+Usage: dart run stackchain remove <name>
+
+Remove a feature that was added with `feature` / `add`:
+  - drop it from stackchain.yaml
+  - delete lib/features/<name>/ and matching test files
+  - re-sync router + DI managed regions (and strip auth redirect if auth)
+
+Cannot remove the last remaining feature.
+
+Options:
+  --dry-run
+  --skip-analyze
+  --name, -n <name>   Alternative to positional name
+
+Examples:
+  dart run stackchain remove auth
+  dart run stackchain remove notifications --dry-run
+''');
+    case 'rename':
+      stdout.writeln('''
+Usage: dart run stackchain rename <from> <to>
+
+Rename a feature end-to-end:
+  - rewrite stackchain.yaml
+  - regenerate / move feature files + tests
+  - preserve hand-written files under the feature tree (with name rewrite)
+  - re-sync router + DI
+
+Options:
+  --from <name>
+  --to <name>
+  --dry-run
+  --skip-analyze
+
+Examples:
+  dart run stackchain rename profile account
+  dart run stackchain rename --from auth --to login --dry-run
+''');
     case 'sync':
       stdout.writeln('''
 Usage: dart run stackchain sync [options]
@@ -699,10 +829,11 @@ Options:
       stdout.writeln('''
 Usage: dart run stackchain migrate [options]
 
-Evolve the stack intentionally (e.g. bloc → cubit, or apply a preset).
-Regenerates presentation layers, deletes the old stack's generated files,
-drops packages it no longer needs, updates pubspec, syncs, runs the gate.
-Domain and data layers are never touched.
+Evolve the stack intentionally (state, routing, DI, architecture, or preset).
+Refreshes bootstrap/app/router/DI, regenerates presentation (and full feature
+tree on architecture change), refreshes feature tests, drops obsolete packages,
+syncs managed regions, and runs the quality gate.
+Domain/data layers are preserved unless architecture itself changes.
 
 Options:
   --state bloc|cubit|riverpod|provider|getx|rxdart
@@ -717,7 +848,8 @@ Options:
 
 Examples:
   dart run stackchain migrate --state rxdart --dry-run
-  dart run stackchain migrate --state rxdart
+  dart run stackchain migrate --state bloc
+  dart run stackchain migrate --routing go_router --di get_it
   dart run stackchain migrate --preset production_riverpod
 ''');
     case 'doctor':
@@ -802,6 +934,8 @@ Commands:
   init                  Scaffold project (replaces default counter main.dart)
   feature <name>        Vertical slice: files + router + DI + tests
   add <name>            Alias for feature
+  remove <name>         Remove a feature (files + yaml + router/DI)
+  rename <from> <to>    Rename a feature end-to-end
   sync                  Smart-merge router/DI managed regions
   upgrade               Refresh deps, sync, lockfile, quality gate
   migrate               Evolve stack (e.g. --state cubit --preset ...)
@@ -816,6 +950,8 @@ Examples:
   dart run stackchain help migrate
   dart run stackchain init
   dart run stackchain feature auth
+  dart run stackchain rename profile account
+  dart run stackchain remove auth
   dart run stackchain sync
   dart run stackchain upgrade
   dart run stackchain migrate --state rxdart

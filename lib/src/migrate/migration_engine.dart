@@ -8,11 +8,16 @@ import '../models/enums.dart';
 import '../models/stackchain_config.dart';
 import '../parser/yaml_parser.dart';
 import '../quality/quality_gate.dart';
+import '../slices/slice_recipes.dart';
 import '../sync/project_sync.dart';
+import '../templates/app/app_templates.dart';
+import '../templates/app/router_templates.dart';
+import '../templates/core/core_templates.dart';
 import '../templates/features/feature_templates.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../utils/pubspec_merger.dart';
+import '../version.dart';
 import 'stack_lock.dart';
 
 /// Intentional stack evolution (e.g. bloc → cubit, go_router stays).
@@ -24,7 +29,7 @@ class MigrationEngine {
     this.overwritePresentation = true,
     this.skipAnalyze = false,
     this.cleanup = true,
-    this.packageVersion = '1.1.2',
+    this.packageVersion = stackchainPackageVersion,
   }) : logger = logger ?? Logger();
 
   final String root;
@@ -38,7 +43,7 @@ class MigrationEngine {
   final bool cleanup;
   final String packageVersion;
 
-  /// Applies [patch] onto stackchain.yaml + regenerates presentation + sync.
+  /// Applies [patch] onto stackchain.yaml + regenerates stack shell + sync.
   Future<MigrationReport> run(MigrationPatch patch) async {
     final context = await ProjectContext.detect(root);
     final before = await _loadConfig(context.packageName);
@@ -56,28 +61,53 @@ class MigrationEngine {
       logger.success('Updated stackchain.yaml');
     }
 
-    // Regenerate feature presentation/state for each feature.
     final registry = ArchitectureRegistry();
     final writer = FileWriter(
       root: root,
       dryRun: dryRun,
       overwrite: overwritePresentation,
     );
+
+    // App shell always follows the target stack (bootstrap ProviderScope, etc.).
+    final shellCount = await _refreshStackShell(before, after, writer);
+    if (shellCount > 0) {
+      logger.success(
+        '${dryRun ? "Would refresh" : "Refreshed"} $shellCount '
+        'app shell file(s)',
+      );
+    }
+
+    // Regenerate feature presentation/state (and full tree on architecture change).
     var fileCount = 0;
+    final architectureChanged = before.architecture != after.architecture;
     for (final feature in after.features) {
       final single = after.copyWith(features: [feature]);
       final files = FeatureTemplates(single, registry: registry).generate();
       for (final entry in files.entries) {
-        // Only regenerate presentation / state / bindings on migrate.
-        if (!_isPresentationPath(entry.key, after)) continue;
+        if (!architectureChanged &&
+            !_isPresentationPath(entry.key, after)) {
+          continue;
+        }
         await writer.write(entry.key, entry.value);
         fileCount++;
       }
     }
-    logger.success('Migrated $fileCount presentation file(s)');
+    logger.success(
+      'Migrated $fileCount '
+      '${architectureChanged ? "feature" : "presentation"} file(s)',
+    );
 
-    final removedFiles =
-        cleanup ? await _removeStaleFiles(before, after, registry) : <String>[];
+    // State-management-specific feature tests must match the new stack.
+    final testCount = await _refreshFeatureTests(before, after, writer);
+    if (testCount > 0) {
+      logger.success(
+        '${dryRun ? "Would refresh" : "Refreshed"} $testCount test file(s)',
+      );
+    }
+
+    final removedFiles = cleanup
+        ? await _removeStaleFiles(before, after, registry)
+        : <String>[];
     if (removedFiles.isNotEmpty) {
       logger.success(
         '${dryRun ? "Would remove" : "Removed"} ${removedFiles.length} '
@@ -146,10 +176,80 @@ class MigrationEngine {
     );
   }
 
+  /// Bootstraps, mains, app widget, router seeds, and DI seed for the new stack.
+  Future<int> _refreshStackShell(
+    StackchainConfig before,
+    StackchainConfig after,
+    FileWriter writer,
+  ) async {
+    var count = 0;
+    final appFiles = AppTemplates(after).generate();
+
+    for (final path in const [
+      'lib/bootstrap.dart',
+      'lib/main.dart',
+      'lib/app/app.dart',
+      'lib/main_dev.dart',
+      'lib/main_staging.dart',
+      'lib/main_prod.dart',
+    ]) {
+      final next = appFiles[path];
+      if (next == null) continue;
+      final file = File(p.join(root, path));
+      final isRequired = path == 'lib/bootstrap.dart' ||
+          path == 'lib/main.dart' ||
+          path == 'lib/app/app.dart';
+      if (!isRequired && !await file.exists()) continue;
+      await writer.write(path, next);
+      count++;
+    }
+
+    final routingChanged = before.routing != after.routing;
+    final stateChanged = before.stateManagement != after.stateManagement;
+    final diChanged = before.di != after.di;
+    final archChanged = before.architecture != after.architecture;
+
+    if (routingChanged || stateChanged || archChanged) {
+      for (final entry in RouterTemplates(after).generate().entries) {
+        await writer.write(entry.key, entry.value);
+        count++;
+      }
+    }
+
+    if (diChanged || stateChanged || archChanged) {
+      final di = CoreTemplates(after).generate()['lib/core/di/injection.dart'];
+      if (di != null) {
+        await writer.write('lib/core/di/injection.dart', di);
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  Future<int> _refreshFeatureTests(
+    StackchainConfig before,
+    StackchainConfig after,
+    FileWriter writer,
+  ) async {
+    if (before.stateManagement == after.stateManagement &&
+        before.architecture == after.architecture) {
+      return 0;
+    }
+
+    var count = 0;
+    for (final feature in after.features) {
+      final extras = SliceRecipes.extras(feature, after);
+      for (final entry in extras.entries) {
+        if (!entry.key.startsWith('test/')) continue;
+        await writer.write(entry.key, entry.value);
+        count++;
+      }
+    }
+    return count;
+  }
+
   /// Files the old stack generated that the new stack no longer owns.
-  ///
-  /// Derived by diffing the generated file sets, so hand-written files are
-  /// never candidates — only scaffolding Stackchain itself produced.
   Future<List<String>> _removeStaleFiles(
     StackchainConfig before,
     StackchainConfig after,
@@ -163,16 +263,23 @@ class MigrationEngine {
           registry: registry,
         ).generate().keys,
       );
+      keep.addAll(SliceRecipes.extras(feature, after).keys);
     }
 
     final stale = <String>{};
     for (final feature in before.features) {
-      final generated = FeatureTemplates(
-        before.copyWith(features: [feature]),
-        registry: registry,
-      ).generate().keys;
+      final generated = {
+        ...FeatureTemplates(
+          before.copyWith(features: [feature]),
+          registry: registry,
+        ).generate().keys,
+        ...SliceRecipes.extras(feature, before).keys,
+      };
       for (final path in generated) {
-        if (!_isPresentationPath(path, before)) continue;
+        final isPresentation = _isPresentationPath(path, before);
+        final isTest = path.startsWith('test/');
+        final architectureChanged = before.architecture != after.architecture;
+        if (!architectureChanged && !isPresentation && !isTest) continue;
         if (keep.contains(path)) continue;
         stale.add(path);
       }
@@ -196,11 +303,11 @@ class MigrationEngine {
     return removed;
   }
 
-  /// Walks up from [start] deleting empty directories, stopping at `lib/`.
   Future<void> _pruneEmptyDirs(String start) async {
     final libRoot = p.normalize(p.join(root, 'lib'));
+    final testRoot = p.normalize(p.join(root, 'test'));
     var current = p.normalize(start);
-    while (p.isWithin(libRoot, current)) {
+    while (p.isWithin(libRoot, current) || p.isWithin(testRoot, current)) {
       final dir = Directory(current);
       if (!dir.existsSync()) {
         current = p.dirname(current);
@@ -228,7 +335,6 @@ class MigrationEngine {
         path.contains('/providers/')) {
       return true;
     }
-    // MVVM/MVC pages
     if (path.endsWith('_page.dart')) return true;
     return false;
   }
@@ -304,7 +410,6 @@ class MigrationPatch {
   StackchainConfig apply(StackchainConfig current) {
     var next = current;
     if (preset != null) {
-      // Re-parse via synthetic yaml for preset expansion.
       final yaml = '''
 stackchain:
   preset: $preset

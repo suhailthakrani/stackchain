@@ -13,6 +13,7 @@ import '../sync/project_sync.dart';
 import '../templates/features/feature_templates.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
+import '../version.dart';
 import 'slice_recipes.dart';
 
 /// Adds a feature as a full vertical slice: files + router + DI + tests.
@@ -23,7 +24,7 @@ class VerticalSliceGenerator {
     this.overwrite = false,
     this.dryRun = false,
     this.skipAnalyze = false,
-    this.packageVersion = '1.1.2',
+    this.packageVersion = stackchainPackageVersion,
   }) : logger = logger ?? Logger();
 
   final String root;

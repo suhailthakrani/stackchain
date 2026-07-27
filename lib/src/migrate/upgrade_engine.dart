@@ -10,6 +10,7 @@ import '../sync/project_sync.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../utils/pubspec_merger.dart';
+import '../version.dart';
 import 'stack_lock.dart';
 
 /// Evolves an existing Stackchain project: deps, sync, lockfile, quality gate.
@@ -21,7 +22,7 @@ class UpgradeEngine {
     Logger? logger,
     this.dryRun = false,
     this.skipAnalyze = false,
-    this.packageVersion = '1.1.2',
+    this.packageVersion = stackchainPackageVersion,
   }) : logger = logger ?? Logger();
 
   final String root;

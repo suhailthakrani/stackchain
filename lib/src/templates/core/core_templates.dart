@@ -487,6 +487,32 @@ abstract class CoreModule {
     for (final f in config.features) {
       if (_layeredArch) {
         final pascal = _pascal(f);
+        importSet
+          ..add(
+            "import 'package:$pkg/features/$f/data/datasources/${f}_remote_datasource.dart';",
+          )
+          ..add(
+            "import 'package:$pkg/features/$f/data/repositories/${f}_repository_impl.dart';",
+          )
+          ..add(
+            "import 'package:$pkg/features/$f/domain/repositories/${f}_repository.dart';",
+          )
+          ..add(
+            "import 'package:$pkg/features/$f/domain/usecases/get_$f.dart';",
+          );
+        regs
+          ..writeln(
+            '  getIt.registerLazySingleton<${pascal}RemoteDataSource>('
+            '${pascal}RemoteDataSourceImpl.new);',
+          )
+          ..writeln(
+            '  getIt.registerLazySingleton<${pascal}Repository>('
+            '() => ${pascal}RepositoryImpl(getIt()));',
+          )
+          ..writeln(
+            '  getIt.registerLazySingleton<Get$pascal>('
+            '() => Get$pascal(getIt()));',
+          );
         if (config.stateManagement == StateManagement.bloc) {
           importSet.add(
             "import 'package:$pkg/features/$f/presentation/bloc/${f}_bloc.dart';",
@@ -518,12 +544,15 @@ abstract class CoreModule {
     final featureRegs = StringBuffer();
     for (final line in regs.toString().split('\n')) {
       if (line.trim().isEmpty) continue;
-      final isFeature = config.features.any(
-        (f) =>
-            line.contains('${_pascal(f)}Bloc') ||
-            line.contains('${_pascal(f)}Cubit') ||
-            line.contains('${_pascal(f)}Controller'),
-      );
+      final isFeature = config.features.any((f) {
+        final pascal = _pascal(f);
+        return line.contains('${pascal}Bloc') ||
+            line.contains('${pascal}Cubit') ||
+            line.contains('${pascal}Controller') ||
+            line.contains('${pascal}RemoteDataSource') ||
+            line.contains('${pascal}Repository') ||
+            line.contains('Get$pascal');
+      });
       if (isFeature) {
         featureRegs.writeln(line);
       } else {

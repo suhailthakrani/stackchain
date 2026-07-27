@@ -63,6 +63,37 @@ class DartImportMerger {
     return offset.clamp(0, source.length);
   }
 
+  /// Removes import lines whose URI is in [toRemove].
+  static String removeImports(String source, Iterable<String> toRemove) {
+    final targets = toRemove
+        .map((u) => u.trim())
+        .where((u) => u.isNotEmpty)
+        .toSet();
+    if (targets.isEmpty) return source;
+
+    final matches = _importRe.allMatches(source).toList();
+    if (matches.isEmpty) return source;
+
+    final buffer = StringBuffer();
+    var cursor = 0;
+    for (final m in matches) {
+      final uri = m.group(1)!;
+      if (!targets.contains(uri)) continue;
+      // Drop the whole line, including the trailing newline when present.
+      var start = m.start;
+      var end = m.end;
+      if (end < source.length && source[end] == '\n') {
+        end++;
+      } else if (start > 0 && source[start - 1] == '\n') {
+        start--;
+      }
+      buffer.write(source.substring(cursor, start));
+      cursor = end;
+    }
+    buffer.write(source.substring(cursor));
+    return buffer.toString();
+  }
+
   /// Collects all import URIs from [source].
   static Set<String> readImports(String source) {
     return {

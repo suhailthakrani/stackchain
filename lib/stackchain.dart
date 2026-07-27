@@ -20,6 +20,8 @@ export 'src/models/stackchain_config.dart';
 export 'src/parser/yaml_parser.dart';
 export 'src/presets/preset_registry.dart';
 export 'src/quality/quality_gate.dart';
+export 'src/slices/feature_remover.dart';
+export 'src/slices/feature_renamer.dart';
 export 'src/slices/vertical_slice.dart';
 export 'src/sync/project_sync.dart';
 export 'src/version.dart';

@@ -28,7 +28,7 @@ Or in `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  stackchain: ^1.1.2
+  stackchain: ^1.1.3
 ```
 
 No config file needed on first run — production defaults are applied automatically (including secure storage, flavors, and CI).
@@ -65,7 +65,7 @@ What you get out of the box:
 | Capability | What it does |
 | --- | --- |
 | **Presets** | One-line blueprints (`production_bloc`, `firebase_bloc`, …) |
-| **Vertical slices** | `feature auth` wires files + router + DI + tests |
+| **Vertical slices** | `feature` / `rename` / `remove` wire or tear down files + router + DI + tests |
 | **Smart sync** | Merges only `<stackchain:…>` regions — hand edits survive |
 | **Upgrade** | Refreshes deps, re-syncs, updates lockfile, re-runs gate |
 | **Migrate** | Evolve stack intentionally (`bloc` → `cubit`, apply preset) |
@@ -147,6 +147,9 @@ dart run stackchain init --dry-run
 # Vertical slice (files + router + DI + tests + gate)
 dart run stackchain feature auth
 dart run stackchain add notifications
+dart run stackchain rename profile account
+dart run stackchain remove auth
+dart run stackchain remove notifications --dry-run
 
 # Smart merge managed regions (no full overwrite)
 dart run stackchain sync

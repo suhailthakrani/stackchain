@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../merge/dart_import_merger.dart';
 import '../merge/region_merger.dart';
 import '../merge/smart_file_merger.dart';
 import '../models/enums.dart';
@@ -46,8 +47,12 @@ class ProjectSync {
     await _syncRoutes();
     await _syncRouter();
     await _syncDi();
+    await _ensureGetxBindings();
     // Always keep guards aligned with SessionService once baseline exists.
     await _ensureRouteGuards();
+    // Drop imports for features no longer in config (after remove / yaml edit).
+    await _pruneStaleFeatureImports('lib/app/router/app_router.dart');
+    await _pruneStaleFeatureImports('lib/core/di/injection.dart');
     if (touched.isEmpty) {
       final router = File(p.join(root, 'lib/app/router/app_routes.dart'));
       if (!await router.exists()) {
@@ -108,9 +113,12 @@ class ProjectSync {
       regionIds: const ['routes'],
     );
 
-    if (config.routing == Routing.goRouter &&
-        config.features.contains('auth')) {
-      await _ensureGoRouterAuthRedirect(path);
+    if (config.routing == Routing.goRouter) {
+      if (config.features.contains('auth')) {
+        await _ensureGoRouterAuthRedirect(path);
+      } else {
+        await _stripGoRouterAuthRedirect(path);
+      }
     }
   }
 
@@ -168,6 +176,129 @@ class ProjectSync {
     await file.writeAsString(content);
     if (!touched.contains(relativePath)) touched.add(relativePath);
     logger.detail('Ensured auth redirect in $relativePath');
+  }
+
+  /// Removes GoRouter auth redirect (and unused guards import) after `remove auth`.
+  Future<void> _stripGoRouterAuthRedirect(String relativePath) async {
+    final file = File(p.join(root, relativePath));
+    if (!await file.exists()) return;
+    var content = await file.readAsString();
+    final before = content;
+
+    content = content.replaceAll(
+      RegExp(
+        r'\n\s*redirect:\s*\(context,\s*state\)\s*async\s*\{[\s\S]*?\n\s*\},',
+      ),
+      '',
+    );
+    if (!content.contains('RouteGuards')) {
+      content = DartImportMerger.removeImports(content, [
+        'route_guards.dart',
+        'package:${config.packageName}/app/router/route_guards.dart',
+      ]);
+      content = content.replaceAll(
+        RegExp(r"^import 'route_guards\.dart';\s*\n", multiLine: true),
+        '',
+      );
+    }
+
+    if (content == before) return;
+    if (dryRun) {
+      logger.detail('Would strip auth redirect from $relativePath');
+      if (!touched.contains(relativePath)) touched.add(relativePath);
+      return;
+    }
+    await file.writeAsString(content);
+    if (!touched.contains(relativePath)) touched.add(relativePath);
+    logger.detail('Stripped auth redirect from $relativePath');
+  }
+
+  /// Removes imports under `/features/<name>/` when [name] is no longer configured.
+  Future<void> _pruneStaleFeatureImports(String relativePath) async {
+    final file = File(p.join(root, relativePath));
+    if (!await file.exists()) return;
+    final content = await file.readAsString();
+    final stale = <String>[];
+    for (final uri in DartImportMerger.readImports(content)) {
+      final match = RegExp(r'/features/([a-z0-9_]+)/').firstMatch(uri);
+      if (match == null) continue;
+      final feature = match.group(1)!;
+      if (!config.features.contains(feature)) stale.add(uri);
+    }
+    if (stale.isEmpty) return;
+
+    final next = DartImportMerger.removeImports(content, stale);
+    if (next == content) return;
+    if (dryRun) {
+      logger.detail('Would prune ${stale.length} import(s) in $relativePath');
+      if (!touched.contains(relativePath)) touched.add(relativePath);
+      return;
+    }
+    await file.writeAsString(next);
+    if (!touched.contains(relativePath)) touched.add(relativePath);
+    logger.detail('Pruned stale feature imports in $relativePath');
+  }
+
+  /// Ensures GetX feature bindings exist whenever routing is GetX.
+  Future<void> _ensureGetxBindings() async {
+    if (config.routing != Routing.getx) return;
+
+    for (final f in config.features) {
+      final relative = 'lib/features/$f/bindings/${f}_binding.dart';
+      final file = File(p.join(root, relative));
+      if (await file.exists()) continue;
+
+      final pascal = StackPaths.pascal(f);
+      final pkg = config.packageName ?? 'app';
+      late final String importLine;
+      late final String registerLine;
+
+      switch (config.stateManagement) {
+        case StateManagement.bloc:
+          importLine =
+              "import 'package:$pkg/features/$f/presentation/bloc/${f}_bloc.dart';";
+          registerLine =
+              '    Get.lazyPut<${pascal}Bloc>(${pascal}Bloc.new);';
+        case StateManagement.cubit:
+          importLine =
+              "import 'package:$pkg/features/$f/presentation/cubit/${f}_cubit.dart';";
+          registerLine =
+              '    Get.lazyPut<${pascal}Cubit>(${pascal}Cubit.new);';
+        case StateManagement.rxdart:
+        case StateManagement.getx:
+          importLine =
+              "import 'package:$pkg/features/$f/presentation/controllers/${f}_controller.dart';";
+          registerLine =
+              '    Get.lazyPut<${pascal}Controller>(${pascal}Controller.new);';
+        case StateManagement.riverpod:
+        case StateManagement.provider:
+          importLine = '';
+          registerLine =
+              '    // ${config.stateManagement.yaml} owns feature state; '
+              'binding satisfies GetPage wiring.';
+      }
+
+      final content = '''
+import 'package:get/get.dart';
+${importLine.isEmpty ? '' : '\n$importLine\n'}
+class ${pascal}Binding extends Bindings {
+  @override
+  void dependencies() {
+$registerLine
+  }
+}
+''';
+
+      if (dryRun) {
+        logger.detail('Would create $relative');
+        if (!touched.contains(relative)) touched.add(relative);
+        continue;
+      }
+      await file.parent.create(recursive: true);
+      await file.writeAsString(content);
+      if (!touched.contains(relative)) touched.add(relative);
+      logger.detail('Ensured $relative');
+    }
   }
 
   Future<void> _ensureRouteGuards() async {
@@ -240,45 +371,36 @@ class ProjectSync {
     final generated = CoreTemplates(config).generate()[path];
     if (generated == null) return;
 
-    final imports = <String>[];
-    final body = StringBuffer();
-    if (StackPaths.layered(config)) {
-      for (final f in config.features) {
-        final pascal = StackPaths.pascal(f);
-        if (config.stateManagement == StateManagement.bloc) {
-          imports.add(
-            'package:${config.packageName}/features/$f/presentation/bloc/${f}_bloc.dart',
-          );
-          body.writeln(
-            '  getIt.registerFactory<${pascal}Bloc>(${pascal}Bloc.new);',
-          );
-        } else if (config.stateManagement == StateManagement.cubit) {
-          imports.add(
-            'package:${config.packageName}/features/$f/presentation/cubit/${f}_cubit.dart',
-          );
-          body.writeln(
-            '  getIt.registerFactory<${pascal}Cubit>(${pascal}Cubit.new);',
-          );
-        } else if (config.stateManagement == StateManagement.rxdart) {
-          imports.add(
-            'package:${config.packageName}/features/$f/presentation/controllers/${f}_controller.dart',
-          );
-          body.writeln(
-            '  getIt.registerFactory<${pascal}Controller>('
-            '${pascal}Controller.new);',
-          );
-        }
-      }
-    }
+    final file = File(p.join(root, path));
+    final exists = await file.exists();
+    final existing = exists ? await file.readAsString() : null;
 
-    await _writeMerged(
-      path,
-      seed: generated,
-      regionId: 'features',
-      regionBody: body.toString(),
-      imports: imports,
+    var next = merger.mergeGeneratedFile(
+      existing: existing,
+      fullGenerated: generated,
       regionIds: const ['core', 'features'],
     );
+
+    // Drop feature imports that are no longer part of the generated DI file.
+    final keep = DartImportMerger.readImports(generated);
+    final current = DartImportMerger.readImports(next);
+    final stale = current.where((uri) {
+      if (!uri.contains('/features/')) return false;
+      return !keep.contains(uri);
+    });
+    if (stale.isNotEmpty) {
+      next = DartImportMerger.removeImports(next, stale);
+    }
+
+    if (existing == next) return;
+    touched.add(path);
+    if (dryRun) {
+      logger.detail('Would sync $path');
+      return;
+    }
+    await file.parent.create(recursive: true);
+    await file.writeAsString(next);
+    logger.detail('Synced $path');
   }
 
   Future<void> _writeMerged(

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.3
+
+- Harden `migrate` so any stack change refreshes bootstrap/app/router/DI and feature tests (not only presentation files)
+- Add `rename <from> <to>` for end-to-end feature rename (yaml + files + tests + router/DI)
+- Add `remove <name>` — delete a feature's files/tests, drop it from `stackchain.yaml`, and re-sync router/DI (strips auth redirect when removing `auth`)
+
 ## 1.1.2
 
 - Point homepage / documentation to the official docs site: https://suhailthakrani.github.io/stackchain-docs/
