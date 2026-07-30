@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.4
+
+- Clarify README for pub.dev: quicker onboarding, full support matrix, examples, and contribution / support call-to-action
+
 ## 1.1.3
 
 - Harden `migrate` so any stack change refreshes bootstrap/app/router/DI and feature tests (not only presentation files)

@@ -2,17 +2,24 @@
   <img src="https://raw.githubusercontent.com/suhailthakrani/stackchain/main/assets/stackchain_logo.png" alt="Stackchain logo" width="420">
 </p>
 
+<p align="center">
+  <a href="https://pub.dev/packages/stackchain"><img src="https://img.shields.io/pub/v/stackchain.svg" alt="pub package"></a>
+  <a href="https://pub.dev/packages/stackchain/score"><img src="https://img.shields.io/pub/likes/stackchain" alt="likes"></a>
+  <a href="https://github.com/suhailthakrani/stackchain/stargazers"><img src="https://img.shields.io/github/stars/suhailthakrani/stackchain?style=flat" alt="stars"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license"></a>
+</p>
+
 # stackchain
 
-Config-driven Flutter scaffolding you keep as a **dev dependency** — not a one-shot generator.
+**Scaffold a Flutter app from a YAML config — then keep using it as you build.**
 
-Set your stack in `stackchain.yaml`, generate a runnable app, add **vertical slices** as you build, then **sync / upgrade / migrate** as the project evolves. Every generate runs a **quality gate**.
+Pick your stack once. Generate a runnable app. Add features with one command. Router and DI stay wired. Switch Bloc → Cubit (or a whole preset) later. Your hand-written code stays safe.
 
-**Docs:** [suhailthakrani.github.io/stackchain-docs](https://suhailthakrani.github.io/stackchain-docs/) · **pub.dev:** [pub.dev/packages/stackchain](https://pub.dev/packages/stackchain)
+[Docs](https://suhailthakrani.github.io/stackchain-docs/) · [pub.dev](https://pub.dev/packages/stackchain) · [GitHub](https://github.com/suhailthakrani/stackchain)
 
-## Quick start
+## Install & run
 
-Requires an existing Flutter app (`flutter create my_app`).
+Needs an existing Flutter app (`flutter create my_app`).
 
 ```bash
 cd my_app
@@ -22,92 +29,23 @@ flutter pub get
 flutter run
 ```
 
-`init` replaces Flutter’s default counter `lib/main.dart` with a production entrypoint (`configureDependencies` + `App`), scaffolds `lib/app`, `lib/core`, and `lib/features`, writes `.stackchain/lock.yaml`, and runs the quality gate.
+`init` replaces the counter app with `lib/app`, `lib/core`, `lib/features`, merges dependencies, and runs a quality check. No config file needed — production defaults apply (Bloc + GoRouter + GetIt + Dio).
 
-Or in `pubspec.yaml`:
+## Choose your stack
 
-```yaml
-dev_dependencies:
-  stackchain: ^1.1.3
-```
-
-No config file needed on first run — production defaults are applied automatically (including secure storage, flavors, and CI).
-
-## Production-grade in few commands
-
-```bash
-dart pub add --dev stackchain
-# stackchain.yaml
-#   preset: production_bloc
-#   features: [splash, auth, home, settings]
-
-dart run stackchain init
-dart run stackchain feature auth   # session + guards + form + tests + sync
-flutter pub get
-flutter run -t lib/main_dev.dart --dart-define=FLAVOR=dev
-```
-
-What you get out of the box:
-
-| Concern | Generated |
-| --- | --- |
-| Scalable architecture | feature-first / clean / mvvm / mvc + your state/router/DI |
-| Secure session | `SessionService` + secure storage + 401 clears session |
-| Auth routing | `RouteGuards` + GoRouter redirect when `auth` exists |
-| Network | Dio + auth/retry/error interceptors (retry keeps auth headers) |
-| Flavors | `main_dev/staging/prod.dart` + `--dart-define=FLAVOR/API_BASE_URL` |
-| Quality | doctor/gate + stricter lints; `strict_quality` fails analyze |
-| CI | GitHub Actions: format · analyze · test |
-| Evolve | `sync` / `upgrade` / `migrate` — not a one-shot generator |
-
-## Why teams keep it forever
-
-| Capability | What it does |
-| --- | --- |
-| **Presets** | One-line blueprints (`production_bloc`, `firebase_bloc`, …) |
-| **Vertical slices** | `feature` / `rename` / `remove` wire or tear down files + router + DI + tests |
-| **Smart sync** | Merges only `<stackchain:…>` regions — hand edits survive |
-| **Upgrade** | Refreshes deps, re-syncs, updates lockfile, re-runs gate |
-| **Migrate** | Evolve stack intentionally (`bloc` → `cubit`, apply preset) |
-| **Doctor / gate** | Structure + security baseline + optional strict analyze |
-
-## Staying ahead (quality-first roadmap)
-
-Ship only when quality is real — no hollow stubs. Next moats competitors won't match if we keep this bar:
-
-1. **OpenAPI → vertical slice** — generate typed models/repos/pages from a spec (quality: compiles + tests)
-2. **Architecture linter pack** — `custom_lint` rules that enforce the chosen architecture forever
-3. **Token refresh flow** — production refresh queue on 401 (not just clear session)
-4. **Offline-first module** — Drift/Isar + cache policy + conflict strategy
-5. **Deep links + app links** — platform manifests + GoRouter wired from config
-6. **Observability pack** — Crashlytics/`FlutterError`/Zones + analytics that actually initialize
-7. **Golden + integration recipes** — per-feature widget goldens and critical-path integration tests
-8. **Org brick registry** — share company-approved slices (auth, payments) privately
-9. **Security audit command** — `stackchain audit` (pinning checklist, secret scan, insecure defaults)
-10. **Melos monorepo mode** — apps + packages from one config without losing sync/migrate
-
-Rule: if it isn't trustworthy in a production app review, it doesn't ship.
-
-## Configuration (`stackchain.yaml`)
-
-### Preset (recommended)
+**Preset (easiest):**
 
 ```yaml
 stackchain:
   preset: production_bloc
-  features:
-    - splash
-    - auth
-    - home
+  features: [splash, auth, home, settings]
 ```
 
-List blueprints: `dart run stackchain presets`
-
-### Full
+**Full control:**
 
 ```yaml
 stackchain:
-  # preset: production_bloc   # optional blueprint; explicit keys win
+  # preset: production_bloc   # optional; explicit keys win
   architecture: feature_first   # feature_first | clean | mvvm | mvc
   state_management: bloc        # bloc | cubit | riverpod | provider | getx | rxdart
   routing: go_router            # go_router | auto_route | navigator | getx
@@ -129,58 +67,50 @@ stackchain:
     - settings
 ```
 
-Omit any key to use the default. If `state_management: getx` and you do not set `routing` / `di`, both default to GetX.
+List presets: `dart run stackchain presets`
 
-## Commands
+## What it supports
+
+| Area | Options |
+| --- | --- |
+| **Architecture** | `feature_first` · `clean` · `mvvm` · `mvc` |
+| **State management** | `bloc` · `cubit` · `riverpod` · `provider` · `getx` · `rxdart` |
+| **Routing** | `go_router` · `auto_route` · `navigator` · `getx` |
+| **DI** | `get_it` · `injectable` · `getx` |
+| **Network** | `dio` · `http` |
+| **Storage** | `shared_preferences` · `secure_storage` · `hive` |
+| **Extras** | flavors · CI workflow · localization · firebase · dark mode · analytics · crashlytics · biometrics |
+| **Presets** | `production_bloc` · `production_riverpod` · `production_rxdart` · `clean_cubit` · `getx_mvc` · `firebase_bloc` · `minimal` |
+
+Also out of the box: session + secure storage, auth route guards (when `auth` exists), Dio interceptors (auth / retry / errors), and a quality gate on every generate.
+
+## Everyday commands
 
 ```bash
-# Help
-dart run stackchain help
-dart run stackchain help migrate
-dart run stackchain help feature
-
-# Scaffold
-dart run stackchain init
-dart run stackchain init --overwrite
-dart run stackchain init --dry-run
-
-# Vertical slice (files + router + DI + tests + gate)
-dart run stackchain feature auth
+# Features
+dart run stackchain feature auth     # files + routes + DI + tests
 dart run stackchain add notifications
 dart run stackchain rename profile account
 dart run stackchain remove auth
-dart run stackchain remove notifications --dry-run
 
-# Smart merge managed regions (no full overwrite)
-dart run stackchain sync
-
-# Evolve the project
-dart run stackchain upgrade
+# Stay in sync
+dart run stackchain sync             # re-wire router & DI
+dart run stackchain upgrade          # refresh deps
 dart run stackchain migrate --state cubit --dry-run
 dart run stackchain migrate --state cubit
 dart run stackchain migrate --preset production_riverpod
-dart run stackchain migrate --state cubit --keep-old   # skip cleanup
 
-# Trust
+# Trust & generate
 dart run stackchain doctor
 dart run stackchain presets
-
-# Generators
-dart run stackchain make feature chat
 dart run stackchain make page onboarding
 dart run stackchain make widget app_chip
-dart run stackchain make service sync
-dart run stackchain list
-dart run stackchain new my_generator
+dart run stackchain make service analytics
 ```
 
-Pass `--skip-analyze` to skip the analyzer pass inside the quality gate.
+## Your code is safe
 
-Custom generators live in `.stackchain/bricks/<name>/__brick__/`. Template files end in `.tpl`.
-
-## Smart merges
-
-Generated router/DI files contain managed regions:
+Generated router/DI files use markers:
 
 ```dart
 // <stackchain:routes>
@@ -188,43 +118,39 @@ GoRoute(path: AppRoutes.home, ...),
 // </stackchain:routes>
 ```
 
-`sync`, `feature`, `upgrade`, and `migrate` replace **only** those regions and merge missing imports. Code outside the markers is preserved.
-
-## Switching state management
-
-`migrate --state <target>` moves the whole project in one command:
-
-- regenerates every feature's state, pages, and bindings for the new stack
-- deletes the files the old stack generated and drops packages it no longer needs
-- rewires router and DI managed regions, then runs the quality gate
-
-Your `domain/` and `data/` layers are untouched — business logic survives the swap. Only Stackchain-generated files are candidates for deletion, so hand-written files stay. Generated files you edited by hand *are* rewritten, so commit first and preview with `--dry-run`; `--keep-old` skips cleanup entirely.
+`sync` / `feature` / `upgrade` / `migrate` only rewrite code **inside** those markers. Everything outside is yours.
 
 ## What `init` generates
 
 ```text
 lib/
 ├── app/           # App widget, theme, config, router
-├── core/          # network, storage, di, errors, utils, services, widgets
+├── core/          # network, storage, DI, errors, utils, session, widgets
 ├── features/      # one module per feature (layout matches architecture)
 └── main.dart      # replaces Flutter counter template
 .stackchain/
 └── lock.yaml      # stack fingerprint for upgrade / migrate
 ```
 
-Also updates `pubspec.yaml` dependencies, analysis options, and test scaffolding.
-
 ## Example stacks
 
-**Preset**
+**Riverpod**
 
 ```yaml
 stackchain:
-  preset: production_bloc
-  features: [auth, home]
+  preset: production_riverpod
+  features: [home, profile]
 ```
 
-**Bloc + GoRouter + GetIt**
+**GetX + MVC**
+
+```yaml
+stackchain:
+  preset: getx_mvc
+  features: [splash, auth, home]
+```
+
+**Bloc + GoRouter + GetIt (manual)**
 
 ```yaml
 stackchain:
@@ -236,30 +162,17 @@ stackchain:
   features: [auth, home]
 ```
 
-**Riverpod**
-
-```yaml
-stackchain:
-  preset: production_riverpod
-  features: [home, profile]
-```
-
-**RxDart**
-
-```yaml
-stackchain:
-  preset: production_rxdart
-  features: [auth, home]
-```
-
-**GetX + MVC**
-
-```yaml
-stackchain:
-  preset: getx_mvc
-  features: [splash, auth, home]
-```
-
 ## License
 
 MIT
+
+## Support & contribute
+
+If stackchain saves you time:
+
+- ⭐ **Star the repo** — [github.com/suhailthakrani/stackchain](https://github.com/suhailthakrani/stackchain)
+- 💙 **Like the package** on [pub.dev](https://pub.dev/packages/stackchain)
+- 🐛 **Open an issue** for bugs or ideas
+- 🔧 **Send a PR** — presets, bricks, docs, and fixes are all welcome
+
+Contributions of any size help. Thank you for the love and support ❤️
