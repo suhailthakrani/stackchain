@@ -181,6 +181,12 @@ class FeatureRenamer {
       }
     }
 
+    final oldIntegration =
+        File(p.join(root, 'integration_test', '${from}_flow_test.dart'));
+    if (await oldIntegration.exists() && !dryRun) {
+      await oldIntegration.delete();
+    }
+
     return touched.toSet().toList()..sort();
   }
 

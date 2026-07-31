@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../architecture/architecture_registry.dart';
+import '../merge/preserving_file_writer.dart';
 import '../models/enums.dart';
 import '../models/stackchain_config.dart';
 import '../parser/yaml_parser.dart';
@@ -14,6 +15,8 @@ import '../templates/app/app_templates.dart';
 import '../templates/app/router_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/features/feature_templates.dart';
+import '../testing/feature_test_templates.dart';
+import '../testing/test_types.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../utils/pubspec_merger.dart';
@@ -67,6 +70,7 @@ class MigrationEngine {
       dryRun: dryRun,
       overwrite: overwritePresentation,
     );
+    final preserving = PreservingFileWriter(writer: writer, logger: logger);
 
     // App shell always follows the target stack (bootstrap ProviderScope, etc.).
     final shellCount = await _refreshStackShell(before, after, writer);
@@ -78,17 +82,46 @@ class MigrationEngine {
     }
 
     // Regenerate feature presentation/state (and full tree on architecture change).
+    // Owned regions merge; `custom` regions are preserved / ported across stacks.
     var fileCount = 0;
     final architectureChanged = before.architecture != after.architecture;
     for (final feature in after.features) {
-      final single = after.copyWith(features: [feature]);
-      final files = FeatureTemplates(single, registry: registry).generate();
-      for (final entry in files.entries) {
-        if (!architectureChanged &&
-            !_isPresentationPath(entry.key, after)) {
+      final beforeFiles = FeatureTemplates(
+        before.copyWith(features: [feature]),
+        registry: registry,
+      ).generate();
+      final afterFiles = FeatureTemplates(
+        after.copyWith(features: [feature]),
+        registry: registry,
+      ).generate();
+
+      final previousController = _stateControllerPath(beforeFiles.keys);
+      final nextController = _stateControllerPath(afterFiles.keys);
+
+      for (final entry in afterFiles.entries) {
+        if (architectureChanged) {
+          // Full feature tree rewrite on architecture change.
+        } else if (!_isStateRefreshPath(entry.key)) {
           continue;
         }
-        await writer.write(entry.key, entry.value);
+
+        String? previousPath;
+        if (beforeFiles.containsKey(entry.key)) {
+          previousPath = entry.key;
+        } else if (entry.key == nextController) {
+          previousPath = previousController;
+        } else if (entry.key.endsWith('_page.dart')) {
+          final pages = beforeFiles.keys
+              .where((k) => k.endsWith('_page.dart'))
+              .toList();
+          previousPath = pages.isEmpty ? null : pages.first;
+        }
+
+        await preserving.writeOwned(
+          relativePath: entry.key,
+          fullGenerated: entry.value,
+          previousPath: previousPath,
+        );
         fileCount++;
       }
     }
@@ -96,9 +129,20 @@ class MigrationEngine {
       'Migrated $fileCount '
       '${architectureChanged ? "feature" : "presentation"} file(s)',
     );
+    if (preserving.preserved.isNotEmpty) {
+      logger.success(
+        'Preserved custom regions in ${preserving.preserved.length} file(s)',
+      );
+    }
+    if (preserving.backedUp.isNotEmpty) {
+      logger.warn(
+        'Legacy files without markers backed up '
+        '(${preserving.backedUp.length}): *.stackchain.bak',
+      );
+    }
 
     // State-management-specific feature tests must match the new stack.
-    final testCount = await _refreshFeatureTests(before, after, writer);
+    final testCount = await _refreshFeatureTests(before, after, preserving);
     if (testCount > 0) {
       logger.success(
         '${dryRun ? "Would refresh" : "Refreshed"} $testCount test file(s)',
@@ -230,7 +274,7 @@ class MigrationEngine {
   Future<int> _refreshFeatureTests(
     StackchainConfig before,
     StackchainConfig after,
-    FileWriter writer,
+    PreservingFileWriter preserving,
   ) async {
     if (before.stateManagement == after.stateManagement &&
         before.architecture == after.architecture) {
@@ -238,15 +282,62 @@ class MigrationEngine {
     }
 
     var count = 0;
+    final templates = FeatureTestTemplates(after);
     for (final feature in after.features) {
-      final extras = SliceRecipes.extras(feature, after);
+      final unit = templates.generate(
+        feature,
+        types: const {TestType.unit},
+      );
+      for (final entry in unit.entries) {
+        if (entry.key.endsWith('_custom_test.dart')) {
+          await preserving.writeIfAbsent(entry.key, entry.value);
+        } else {
+          await preserving.writeScaffold(
+            relativePath: entry.key,
+            fullGenerated: entry.value,
+          );
+        }
+        count++;
+      }
+
+      final types = <TestType>{};
+      if (File(p.join(root, 'test/features/${feature}_page_test.dart'))
+          .existsSync()) {
+        types.add(TestType.widget);
+      }
+      if (File(p.join(root, 'integration_test/${feature}_flow_test.dart'))
+          .existsSync()) {
+        types.add(TestType.integration);
+      }
+      if (types.isEmpty) continue;
+      final extras = templates.generate(feature, types: types);
       for (final entry in extras.entries) {
-        if (!entry.key.startsWith('test/')) continue;
-        await writer.write(entry.key, entry.value);
+        if (entry.key.endsWith('_custom_test.dart')) {
+          await preserving.writeIfAbsent(entry.key, entry.value);
+        } else {
+          await preserving.writeScaffold(
+            relativePath: entry.key,
+            fullGenerated: entry.value,
+          );
+        }
         count++;
       }
     }
     return count;
+  }
+
+  /// Primary state controller path for a feature template set.
+  String? _stateControllerPath(Iterable<String> paths) {
+    final ranked = paths.where((k) {
+      return k.endsWith('_bloc.dart') ||
+          k.endsWith('_cubit.dart') ||
+          k.endsWith('_controller.dart') ||
+          k.endsWith('_provider.dart') ||
+          k.endsWith('_view_model.dart') ||
+          k.endsWith('_viewmodel.dart');
+    }).toList();
+    if (ranked.isEmpty) return null;
+    return ranked.first;
   }
 
   /// Files the old stack generated that the new stack no longer owns.
@@ -337,6 +428,20 @@ class MigrationEngine {
     }
     if (path.endsWith('_page.dart')) return true;
     return false;
+  }
+
+  /// Paths refreshed on state-management migrate (not static widgets/headers).
+  bool _isStateRefreshPath(String path) {
+    if (path.endsWith('_page.dart')) return true;
+    if (path.contains('/bindings/')) return true;
+    return path.endsWith('_bloc.dart') ||
+        path.endsWith('_cubit.dart') ||
+        path.endsWith('_event.dart') ||
+        path.endsWith('_state.dart') ||
+        path.endsWith('_controller.dart') ||
+        path.endsWith('_provider.dart') ||
+        path.endsWith('_view_model.dart') ||
+        path.endsWith('_viewmodel.dart');
   }
 
   Future<void> _rewriteYaml(StackchainConfig config) async {

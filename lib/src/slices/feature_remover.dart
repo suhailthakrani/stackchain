@@ -10,6 +10,7 @@ import '../parser/yaml_parser.dart';
 import '../quality/quality_gate.dart';
 import '../sync/project_sync.dart';
 import '../templates/features/feature_templates.dart';
+import '../testing/feature_test_templates.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../version.dart';
@@ -148,6 +149,22 @@ class FeatureRemover {
           if (!dryRun) await entity.delete();
         }
       }
+    }
+
+    final integrationFlow =
+        File(p.join(root, 'integration_test', '${name}_flow_test.dart'));
+    if (await integrationFlow.exists()) {
+      final rel = p.relative(integrationFlow.path, from: root);
+      if (!deleted.contains(rel)) deleted.add(rel);
+      if (!dryRun) await integrationFlow.delete();
+    }
+
+    // Also drop any files owned by the full test suite generator.
+    for (final rel in FeatureTestTemplates.ownedPaths(name, config)) {
+      final file = File(p.join(root, rel));
+      if (!await file.exists()) continue;
+      if (!deleted.contains(rel)) deleted.add(rel);
+      if (!dryRun) await file.delete();
     }
 
     final featureRoot = Directory(p.join(root, 'lib', 'features', name));

@@ -205,9 +205,12 @@ import '${feature}_state.dart';
 
 class ${pascal}Bloc extends Bloc<${pascal}Event, ${pascal}State> {
   ${pascal}Bloc() : super(const ${pascal}State()) {
+    // <stackchain:handlers>
     on<${pascal}Started>(_onStarted);
+    // </stackchain:handlers>
   }
 
+  // <stackchain:generated>
   Future<void> _onStarted(
     ${pascal}Started event,
     Emitter<${pascal}State> emit,
@@ -221,6 +224,11 @@ class ${pascal}Bloc extends Bloc<${pascal}Event, ${pascal}State> {
       ),
     );
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''',
         };
@@ -266,6 +274,7 @@ import '${feature}_state.dart';
 class ${pascal}Cubit extends Cubit<${pascal}State> {
   ${pascal}Cubit() : super(const ${pascal}State());
 
+  // <stackchain:generated>
   Future<void> load() async {
     emit(state.copyWith(status: ${pascal}Status.loading));
     await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -276,6 +285,11 @@ class ${pascal}Cubit extends Cubit<${pascal}State> {
       ),
     );
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''',
         };
@@ -301,11 +315,17 @@ class ${pascal}State {
 class ${pascal}Notifier extends StateNotifier<${pascal}State> {
   ${pascal}Notifier() : super(const ${pascal}State());
 
+  // <stackchain:generated>
   Future<void> load() async {
     state = state.copyWith(loading: true);
     await Future<void>.delayed(const Duration(milliseconds: 250));
     state = state.copyWith(loading: false, title: '$pascal');
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 
 final ${feature}Provider =
@@ -323,6 +343,7 @@ class ${pascal}Provider extends ChangeNotifier {
   bool loading = false;
   String title = '$pascal';
 
+  // <stackchain:generated>
   Future<void> load() async {
     loading = true;
     notifyListeners();
@@ -331,6 +352,11 @@ class ${pascal}Provider extends ChangeNotifier {
     title = '$pascal';
     notifyListeners();
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''',
         };
@@ -361,12 +387,18 @@ class ${pascal}Controller extends GetxController {
     load();
   }
 
+  // <stackchain:generated>
   Future<void> load() async {
     loading.value = true;
     await Future<void>.delayed(const Duration(milliseconds: 250));
     title.value = '$pascal';
     loading.value = false;
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''',
           '${layout.root}/bindings/${feature}_binding.dart': '''
@@ -432,6 +464,7 @@ class ${pascal}Controller {
   ValueStream<${pascal}State> get stream => _state.stream;
   ${pascal}State get state => _state.value;
 
+  // <stackchain:generated>
   Future<void> load() async {
     _state.add(state.copyWith(status: ${pascal}Status.loading));
     try {
@@ -456,6 +489,11 @@ class ${pascal}Controller {
   void dispose() {
     _state.close();
   }
+  // </stackchain:generated>
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''',
         };
@@ -560,6 +598,10 @@ ${navLinks.isEmpty ? '' : '''
       ),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
       case StateManagement.cubit:
@@ -610,6 +652,10 @@ ${navLinks.isEmpty ? '' : '''
       ),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
       case StateManagement.riverpod:
@@ -639,6 +685,10 @@ class ${pascal}Page extends ConsumerWidget {
             ),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
       case StateManagement.provider:
@@ -673,6 +723,10 @@ class ${pascal}Page extends StatelessWidget {
       ),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
       case StateManagement.getx:
@@ -727,6 +781,10 @@ ${navGetx.isEmpty ? '' : '''
       }),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
       case StateManagement.rxdart:
@@ -796,6 +854,10 @@ ${navLinks.isEmpty ? '' : '''
       ),
     );
   }
+
+  // <stackchain:custom>
+  // Add custom methods here. Preserved across migrate / test refresh.
+  // </stackchain:custom>
 }
 ''';
     }

@@ -164,6 +164,50 @@ class PubspecMerger {
     final keys = deps.keys.toList()..sort();
     return keys.map((k) => '  $k: ${deps[k]}').join('\n');
   }
+
+  /// Ensures a Flutter-SDK package under `dev_dependencies` (e.g. integration_test).
+  ///
+  /// Writes:
+  /// ```yaml
+  ///   integration_test:
+  ///     sdk: flutter
+  /// ```
+  static String ensureSdkDevDependency(String existing, String packageName) {
+    final already = RegExp(
+      '^\\s*${RegExp.escape(packageName)}:\\s*\$',
+      multiLine: true,
+    ).hasMatch(existing);
+    if (already) return existing;
+
+    final section = RegExp(r'^dev_dependencies:\s*$', multiLine: true)
+        .firstMatch(existing);
+    final block = '''
+  $packageName:
+    sdk: flutter
+''';
+
+    if (section == null) {
+      final suffix = existing.endsWith('\n') ? '' : '\n';
+      return '$existing$suffix\ndev_dependencies:\n$block';
+    }
+
+    final after = existing.substring(section.end);
+    final nextTop = RegExp(
+      r'^[a-zA-Z_][a-zA-Z0-9_]*:',
+      multiLine: true,
+    ).firstMatch(after);
+    final blockEnd = nextTop == null ? after.length : nextTop.start;
+
+    var insertOffset = blockEnd;
+    while (insertOffset > 0 &&
+        (after[insertOffset - 1] == '\n' || after[insertOffset - 1] == ' ')) {
+      insertOffset--;
+    }
+
+    final absoluteInsert = section.end + insertOffset;
+    return '${existing.substring(0, absoluteInsert)}\n$block'
+        '${existing.substring(absoluteInsert)}';
+  }
 }
 
 /// Writes a default stackchain.yaml when missing.

@@ -2,7 +2,7 @@ name: stackchain
 description: >-
   Scaffold a Flutter app from a YAML config. Add features with one command,
   keep router and DI in sync, and migrate your stack safely.
-version: 1.1.4
+version: 1.2.0
 homepage: https://suhailthakrani.github.io/stackchain-docs/
 repository: https://github.com/suhailthakrani/stackchain
 issue_tracker: https://github.com/suhailthakrani/stackchain/issues

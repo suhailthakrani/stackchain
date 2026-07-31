@@ -1,5 +1,7 @@
 import '../models/enums.dart';
 import '../models/stackchain_config.dart';
+import '../testing/feature_test_templates.dart';
+import '../testing/test_types.dart';
 import '../utils/stack_paths.dart';
 
 /// Blueprint extras layered on top of generic feature templates.
@@ -8,7 +10,11 @@ import '../utils/stack_paths.dart';
 abstract final class SliceRecipes {
   static Map<String, String> extras(String feature, StackchainConfig config) {
     final files = <String, String>{
-      ..._testScaffold(feature, config),
+      // Default unit scaffold on `feature add`. Full suite: `stackchain test`.
+      ...FeatureTestTemplates(config).generate(
+        feature,
+        types: const {TestType.unit},
+      ),
     };
 
     switch (feature) {
@@ -20,115 +26,6 @@ abstract final class SliceRecipes {
         files.addAll(_profileExtras(config));
     }
     return files;
-  }
-
-  static Map<String, String> _testScaffold(
-    String feature,
-    StackchainConfig config,
-  ) {
-    final pascal = StackPaths.pascal(feature);
-    final pkg = config.packageName ?? 'app';
-
-    if (StackPaths.layered(config) &&
-        config.stateManagement.usesFlutterBloc) {
-      if (config.stateManagement == StateManagement.bloc) {
-        return {
-          'test/features/${feature}_bloc_test.dart': '''
-import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:$pkg/features/$feature/presentation/bloc/${feature}_bloc.dart';
-import 'package:$pkg/features/$feature/presentation/bloc/${feature}_event.dart';
-import 'package:$pkg/features/$feature/presentation/bloc/${feature}_state.dart';
-
-void main() {
-  group('${pascal}Bloc', () {
-    blocTest<${pascal}Bloc, ${pascal}State>(
-      'emits loading then success on start',
-      build: ${pascal}Bloc.new,
-      act: (b) => b.add(const ${pascal}Started()),
-      wait: const Duration(milliseconds: 300),
-      expect: () => [
-        isA<${pascal}State>(),
-        isA<${pascal}State>(),
-      ],
-    );
-  });
-}
-''',
-        };
-      }
-      return {
-        'test/features/${feature}_cubit_test.dart': '''
-import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:$pkg/features/$feature/presentation/cubit/${feature}_cubit.dart';
-import 'package:$pkg/features/$feature/presentation/cubit/${feature}_state.dart';
-
-void main() {
-  group('${pascal}Cubit', () {
-    blocTest<${pascal}Cubit, ${pascal}State>(
-      'emits success after load',
-      build: ${pascal}Cubit.new,
-      act: (c) => c.load(),
-      wait: const Duration(milliseconds: 300),
-      expect: () => [
-        isA<${pascal}State>(),
-        isA<${pascal}State>(),
-      ],
-    );
-  });
-}
-''',
-      };
-    }
-
-    if (StackPaths.layered(config) && config.stateManagement.usesRxDart) {
-      return {
-        'test/features/${feature}_controller_test.dart': '''
-import 'package:flutter_test/flutter_test.dart';
-import 'package:$pkg/features/$feature/presentation/controllers/${feature}_controller.dart';
-import 'package:$pkg/features/$feature/presentation/controllers/${feature}_state.dart';
-
-void main() {
-  late ${pascal}Controller controller;
-
-  setUp(() {
-    controller = ${pascal}Controller();
-  });
-
-  tearDown(() {
-    controller.dispose();
-  });
-
-  test('emits success after load', () async {
-    await expectLater(
-      controller.stream,
-      emitsThrough(
-        isA<${pascal}State>().having(
-          (s) => s.status,
-          'status',
-          ${pascal}Status.success,
-        ),
-      ),
-    );
-  });
-}
-''',
-      };
-    }
-
-    return {
-      'test/features/${feature}_test.dart': '''
-import 'package:flutter_test/flutter_test.dart';
-import 'package:$pkg/${StackPaths.pageImport(config, feature)}';
-
-void main() {
-  test('${pascal}Page type is available', () {
-    expect(${pascal}Page, isNotNull);
-  });
-}
-''',
-    };
   }
 
   static String _widgetsDir(StackchainConfig config, String feature) {

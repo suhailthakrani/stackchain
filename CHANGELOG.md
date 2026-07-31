@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+- Add `test <feature>` to generate unit, widget, and integration tests (`--type`, `--all`, `--overwrite`)
+- Preserve user code in `// <stackchain:custom>` regions across `migrate` / `feature` / `test`
+- Port custom regions when state management changes (e.g. Bloc → Cubit)
+- Add `test/features/<feature>_custom_test.dart` (never overwritten)
+- Scaffold tests use `// <stackchain:generated>` regions (safe refresh)
+- Legacy unmarked customized files are backed up as `*.stackchain.bak` before replace
+
 ## 1.1.4
 
 - Clarify README for pub.dev: quicker onboarding, full support matrix, examples, and contribution / support call-to-action

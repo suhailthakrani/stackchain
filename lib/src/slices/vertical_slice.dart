@@ -5,6 +5,7 @@ import 'package:recase/recase.dart';
 import 'package:yaml/yaml.dart';
 
 import '../architecture/architecture_registry.dart';
+import '../merge/preserving_file_writer.dart';
 import '../migrate/stack_lock.dart';
 import '../models/stackchain_config.dart';
 import '../parser/yaml_parser.dart';
@@ -60,6 +61,7 @@ class VerticalSliceGenerator {
       overwrite: overwrite,
       dryRun: dryRun,
     );
+    final preserving = PreservingFileWriter(writer: writer, logger: logger);
 
     for (final dir in layout.directories) {
       await writer.ensureDir(dir);
@@ -72,7 +74,14 @@ class VerticalSliceGenerator {
     };
 
     for (final entry in files.entries) {
-      await writer.write(entry.key, entry.value);
+      if (entry.key.endsWith('_custom_test.dart')) {
+        await preserving.writeIfAbsent(entry.key, entry.value);
+      } else {
+        await preserving.writeOwned(
+          relativePath: entry.key,
+          fullGenerated: entry.value,
+        );
+      }
     }
     logger.success(
       'Generated vertical slice "$name" (${files.length} files)',

@@ -13,6 +13,8 @@ import '../parser/yaml_parser.dart';
 import '../presets/preset_registry.dart';
 import '../quality/quality_gate.dart';
 import '../sync/project_sync.dart';
+import '../testing/feature_test_generator.dart';
+import '../testing/test_types.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../version.dart';
@@ -161,6 +163,31 @@ Future<void> run(List<String> args) async {
       ..addOption(
         'to',
         help: 'New feature name (or pass as second positional).',
+      ),
+  );
+  parser.addCommand(
+    'test',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('overwrite', abbr: 'f', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('skip-analyze', negatable: false)
+      ..addFlag(
+        'all',
+        abbr: 'a',
+        negatable: false,
+        help: 'Generate tests for every feature in stackchain.yaml',
+      )
+      ..addOption(
+        'type',
+        abbr: 't',
+        help: 'Test layers: unit, widget, integration (comma-separated). '
+            'Default: all three.',
+      )
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Feature name (or pass as positional).',
       ),
   );
   parser.addCommand(
@@ -359,6 +386,19 @@ Future<void> run(List<String> args) async {
         if (logger.verbose) logger.detail(st.toString());
         exitCode = 1;
       }
+    case 'test':
+      if (command['help'] == true) {
+        _printHelp(parser, const ['test']);
+        return;
+      }
+      await _generateFeatureTests(
+        command,
+        root,
+        logger,
+        overwrite: overwrite,
+        dryRun: dryRun,
+        skipAnalyze: skipAnalyze,
+      );
     case 'new':
       if (command['help'] == true) {
         _printHelp(parser, const ['new']);
@@ -555,6 +595,71 @@ Future<void> _doctor(
       runAnalyzer: !skipAnalyze,
     ).run();
     if (!gate.passed) exitCode = 1;
+  } catch (e, st) {
+    logger.error(e.toString());
+    if (logger.verbose) logger.detail(st.toString());
+    exitCode = 1;
+  }
+}
+
+Future<void> _generateFeatureTests(
+  ArgResults command,
+  String root,
+  Logger logger, {
+  required bool overwrite,
+  required bool dryRun,
+  required bool skipAnalyze,
+}) async {
+  final all = command['all'] == true;
+  final name = _resolveName(command);
+  if (!all && name == null) {
+    stdout.writeln('''
+Usage: dart run stackchain test <feature>
+       dart run stackchain test --all
+
+Generate unit, widget, and/or integration tests for a feature.
+
+Options:
+  --type, -t <list>   unit,widget,integration (default: all)
+  --all, -a           Every feature in stackchain.yaml
+  --overwrite, -f
+  --dry-run
+  --skip-analyze
+  --name, -n <name>
+
+Examples:
+  dart run stackchain test auth
+  dart run stackchain test auth --type unit,widget
+  dart run stackchain test --all --type integration
+''');
+    return;
+  }
+
+  try {
+    final types = TestType.parse(command['type'] as String?);
+    final report = await FeatureTestGenerator(
+      root: root,
+      logger: logger,
+      overwrite: overwrite,
+      dryRun: dryRun,
+      skipAnalyze: skipAnalyze,
+    ).run(
+      featureName: name,
+      all: all,
+      types: types,
+    );
+    if (report.skipped.isNotEmpty &&
+        report.created.isEmpty &&
+        report.updated.isEmpty) {
+      logger.warn(
+        'No files written (${report.skipped.length} skipped). '
+        'Pass --overwrite to replace existing tests.',
+      );
+    }
+    if (!report.quality.passed) exitCode = 1;
+  } on FormatException catch (e) {
+    logger.error(e.message);
+    exitCode = 64;
   } catch (e, st) {
     logger.error(e.toString());
     if (logger.verbose) logger.detail(st.toString());
@@ -803,6 +908,40 @@ Examples:
   dart run stackchain rename profile account
   dart run stackchain rename --from auth --to login --dry-run
 ''');
+    case 'test':
+      stdout.writeln('''
+Usage: dart run stackchain test <feature>
+       dart run stackchain test --all
+
+Generate stack-aware tests for a feature already in stackchain.yaml:
+  unit          bloc/cubit/controller (or page type) tests
+  widget        page smoke tests under test/features/
+  integration   flow smoke under integration_test/
+
+Also creates test/features/<feature>_custom_test.dart once — never overwritten.
+Put assertions for your own methods there.
+
+Scaffold files use // <stackchain:generated> regions so refresh keeps hand-written
+tests outside those markers. Presentation classes use // <stackchain:custom>.
+
+`feature add` still scaffolds a default unit test. Use this command for the
+full suite (or to refresh tests after stack changes).
+
+Options:
+  --type, -t <list>   unit,widget,integration (comma-separated; default: all)
+  --all, -a           Generate for every feature in stackchain.yaml
+  --overwrite, -f     Replace/merge scaffold files (custom_test untouched;
+                      unmarked customized files get a .stackchain.bak)
+  --dry-run
+  --skip-analyze
+  --name, -n <name>   Alternative to positional name
+
+Examples:
+  dart run stackchain test auth
+  dart run stackchain test auth --type unit,widget
+  dart run stackchain test auth --type integration --overwrite
+  dart run stackchain test --all
+''');
     case 'sync':
       stdout.writeln('''
 Usage: dart run stackchain sync [options]
@@ -834,6 +973,10 @@ Refreshes bootstrap/app/router/DI, regenerates presentation (and full feature
 tree on architecture change), refreshes feature tests, drops obsolete packages,
 syncs managed regions, and runs the quality gate.
 Domain/data layers are preserved unless architecture itself changes.
+
+Presentation/state files use // <stackchain:custom> regions — your methods
+there are preserved and ported across state changes (e.g. Bloc → Cubit).
+Legacy files without markers are backed up as *.stackchain.bak when replaced.
 
 Options:
   --state bloc|cubit|riverpod|provider|getx|rxdart
@@ -936,6 +1079,7 @@ Commands:
   add <name>            Alias for feature
   remove <name>         Remove a feature (files + yaml + router/DI)
   rename <from> <to>    Rename a feature end-to-end
+  test <feature>        Generate unit / widget / integration tests
   sync                  Smart-merge router/DI managed regions
   upgrade               Refresh deps, sync, lockfile, quality gate
   migrate               Evolve stack (e.g. --state cubit --preset ...)
@@ -950,6 +1094,7 @@ Examples:
   dart run stackchain help migrate
   dart run stackchain init
   dart run stackchain feature auth
+  dart run stackchain test auth
   dart run stackchain rename profile account
   dart run stackchain remove auth
   dart run stackchain sync

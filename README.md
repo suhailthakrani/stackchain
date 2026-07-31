@@ -100,6 +100,13 @@ dart run stackchain migrate --state cubit --dry-run
 dart run stackchain migrate --state cubit
 dart run stackchain migrate --preset production_riverpod
 
+# Tests for a feature
+dart run stackchain test auth                    # unit + widget + integration
+dart run stackchain test auth --type unit,widget
+dart run stackchain test --all
+# Custom logic → test/features/<feature>_custom_test.dart (never overwritten)
+# Custom methods → // <stackchain:custom> in generated Bloc/Cubit/Page classes
+
 # Trust & generate
 dart run stackchain doctor
 dart run stackchain presets

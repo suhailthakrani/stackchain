@@ -87,7 +87,19 @@ class RegionMerger {
     final openIndex = source.indexOf(open);
     final closeIndex = source.indexOf(close);
     if (openIndex < 0 || closeIndex <= openIndex) return null;
-    return source.substring(openIndex + open.length, closeIndex).trim();
+    var body = source.substring(openIndex + open.length, closeIndex);
+    // Drop the newline immediately after the open marker only — keep indent.
+    if (body.startsWith('\r\n')) {
+      body = body.substring(2);
+    } else if (body.startsWith('\n')) {
+      body = body.substring(1);
+    }
+    if (body.endsWith('\r\n')) {
+      body = body.substring(0, body.length - 2);
+    } else if (body.endsWith('\n')) {
+      body = body.substring(0, body.length - 1);
+    }
+    return body;
   }
 
   static String _normalizeBody(String body) {
