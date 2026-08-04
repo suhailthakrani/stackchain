@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- Richer shippable recipes: deepen auth (form + widget test) and settings (preferences + persistence test); add onboarding, notifications, search
+- Add `crud <entity>` for list tile + form + form tests on top of a vertical slice
+- Add `stub <feature>` (and `test --stub-custom`) to scan `// <stackchain:custom>` and append placeholder tests
+- Add `doctor --fix`: detect marker/lock/orphan drift and auto sync + refresh lockfile
+
 ## 1.2.0
 
 - Add `test <feature>` to generate unit, widget, and integration tests (`--type`, `--all`, `--overwrite`)

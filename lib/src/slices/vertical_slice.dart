@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../architecture/architecture_registry.dart';
 import '../merge/preserving_file_writer.dart';
 import '../migrate/stack_lock.dart';
+import '../models/enums.dart';
 import '../models/stackchain_config.dart';
 import '../parser/yaml_parser.dart';
 import '../quality/quality_gate.dart';
@@ -14,7 +15,10 @@ import '../sync/project_sync.dart';
 import '../templates/features/feature_templates.dart';
 import '../utils/file_writer.dart';
 import '../utils/logger.dart';
+import '../utils/pubspec_merger.dart';
 import '../version.dart';
+import 'crud_recipe.dart';
+import 'recipe_extras.dart';
 import 'slice_recipes.dart';
 
 /// Adds a feature as a full vertical slice: files + router + DI + tests.
@@ -25,6 +29,7 @@ class VerticalSliceGenerator {
     this.overwrite = false,
     this.dryRun = false,
     this.skipAnalyze = false,
+    this.crud = false,
     this.packageVersion = stackchainPackageVersion,
   }) : logger = logger ?? Logger();
 
@@ -33,6 +38,7 @@ class VerticalSliceGenerator {
   final bool overwrite;
   final bool dryRun;
   final bool skipAnalyze;
+  final bool crud;
   final String packageVersion;
 
   Future<QualityReport> add(String rawName) async {
@@ -72,6 +78,16 @@ class VerticalSliceGenerator {
       ...FeatureTemplates(single, registry: registry).generate(),
       ...SliceRecipes.extras(name, config),
     };
+    if (crud) {
+      if (FeatureRecipeExtras.known.contains(name)) {
+        logger.warn(
+          '"$name" is a known shippable recipe — skipping CRUD extras so '
+          'recipe widgets are not replaced. Use a different entity name.',
+        );
+      } else {
+        files.addAll(CrudRecipe.extras(name, config));
+      }
+    }
 
     for (final entry in files.entries) {
       if (entry.key.endsWith('_custom_test.dart')) {
@@ -86,6 +102,10 @@ class VerticalSliceGenerator {
     logger.success(
       'Generated vertical slice "$name" (${files.length} files)',
     );
+
+    if (!dryRun && name == 'settings') {
+      await _ensureSharedPreferences(config);
+    }
 
     // Wire the whole stack — no manual init --overwrite needed.
     final sync = ProjectSync(
@@ -124,6 +144,24 @@ class VerticalSliceGenerator {
       await file.readAsString(),
       packageName: packageName,
     );
+  }
+
+  /// Settings recipe imports `shared_preferences` even if storage yaml omitted it.
+  Future<void> _ensureSharedPreferences(StackchainConfig config) async {
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!await pubspec.exists()) return;
+    final existing = await pubspec.readAsString();
+    final withPrefs = config.copyWith(
+      storage: [
+        ...config.storage.where((s) => s != StorageType.sharedPreferences),
+        StorageType.sharedPreferences,
+      ],
+    );
+    final merged = PubspecMerger.merge(existing: existing, config: withPrefs);
+    if (merged != existing) {
+      await pubspec.writeAsString(merged);
+      logger.success('Ensured shared_preferences in pubspec.yaml');
+    }
   }
 
   Future<void> _appendFeatureToYaml(String name) async {

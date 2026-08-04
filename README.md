@@ -13,7 +13,7 @@
 
 **Scaffold a Flutter app from a YAML config — then keep using it as you build.**
 
-Pick your stack once. Generate a runnable app. Add features with one command. Router and DI stay wired. Switch Bloc → Cubit (or a whole preset) later. Your hand-written code stays safe.
+Pick your stack once. Generate shippable features. Keep your hand-written code. Fix the project when it drifts.
 
 [Docs](https://suhailthakrani.github.io/stackchain-docs/) · [pub.dev](https://pub.dev/packages/stackchain) · [GitHub](https://github.com/suhailthakrani/stackchain)
 
@@ -89,7 +89,9 @@ Also out of the box: session + secure storage, auth route guards (when `auth` ex
 ```bash
 # Features
 dart run stackchain feature auth     # files + routes + DI + tests
+dart run stackchain feature onboarding
 dart run stackchain add notifications
+dart run stackchain crud product     # feature + list/form CRUD extras
 dart run stackchain rename profile account
 dart run stackchain remove auth
 
@@ -103,12 +105,14 @@ dart run stackchain migrate --preset production_riverpod
 # Tests for a feature
 dart run stackchain test auth                    # unit + widget + integration
 dart run stackchain test auth --type unit,widget
+dart run stackchain stub auth                    # stub // <stackchain:custom> methods
 dart run stackchain test --all
 # Custom logic → test/features/<feature>_custom_test.dart (never overwritten)
 # Custom methods → // <stackchain:custom> in generated Bloc/Cubit/Page classes
 
 # Trust & generate
 dart run stackchain doctor
+dart run stackchain doctor --fix              # sync + refresh lock
 dart run stackchain presets
 dart run stackchain make page onboarding
 dart run stackchain make widget app_chip

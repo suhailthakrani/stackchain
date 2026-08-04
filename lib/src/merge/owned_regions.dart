@@ -28,8 +28,8 @@ abstract final class OwnedRegions {
 
   /// Empty custom region block (indented for class bodies).
   static String customRegionBlock({String body = customPlaceholder}) {
-    final open = '${RegionMerger.openPrefix}$custom>';
-    final close = '${RegionMerger.closePrefix}$custom>';
+    const open = '${RegionMerger.openPrefix}$custom>';
+    const close = '${RegionMerger.closePrefix}$custom>';
     final normalized = body.endsWith('\n') ? body : '$body\n';
     return '$open\n$normalized$close\n';
   }

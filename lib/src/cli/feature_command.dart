@@ -12,6 +12,7 @@ class FeatureCommand {
     this.overwrite = false,
     this.dryRun = false,
     this.skipAnalyze = false,
+    this.crud = false,
   });
 
   final String root;
@@ -19,6 +20,7 @@ class FeatureCommand {
   final bool overwrite;
   final bool dryRun;
   final bool skipAnalyze;
+  final bool crud;
 
   Future<QualityReport> add(String rawName) {
     return VerticalSliceGenerator(
@@ -27,6 +29,7 @@ class FeatureCommand {
       overwrite: overwrite,
       dryRun: dryRun,
       skipAnalyze: skipAnalyze,
+      crud: crud,
     ).add(rawName);
   }
 

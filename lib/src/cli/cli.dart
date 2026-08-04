@@ -11,8 +11,10 @@ import '../models/enums.dart';
 import '../models/stackchain_config.dart';
 import '../parser/yaml_parser.dart';
 import '../presets/preset_registry.dart';
+import '../quality/doctor_engine.dart';
 import '../quality/quality_gate.dart';
 import '../sync/project_sync.dart';
+import '../testing/custom_method_stubber.dart';
 import '../testing/feature_test_generator.dart';
 import '../testing/test_types.dart';
 import '../utils/file_writer.dart';
@@ -92,7 +94,12 @@ Future<void> run(List<String> args) async {
     'doctor',
     ArgParser()
       ..addFlag('help', abbr: 'h', negatable: false)
-      ..addFlag('skip-analyze', negatable: false),
+      ..addFlag('skip-analyze', negatable: false)
+      ..addFlag(
+        'fix',
+        negatable: false,
+        help: 'Auto-repair: sync router/DI + refresh lockfile',
+      ),
   );
   parser.addCommand(
     'presets',
@@ -178,11 +185,46 @@ Future<void> run(List<String> args) async {
         negatable: false,
         help: 'Generate tests for every feature in stackchain.yaml',
       )
+      ..addFlag(
+        'stub-custom',
+        defaultsTo: true,
+        help: 'Scan // <stackchain:custom> and stub *_custom_test.dart',
+      )
       ..addOption(
         'type',
         abbr: 't',
         help: 'Test layers: unit, widget, integration (comma-separated). '
             'Default: all three.',
+      )
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Feature name (or pass as positional).',
+      ),
+  );
+  parser.addCommand(
+    'crud',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('overwrite', abbr: 'f', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('skip-analyze', negatable: false)
+      ..addOption(
+        'name',
+        abbr: 'n',
+        help: 'Entity name (or pass as positional).',
+      ),
+  );
+  parser.addCommand(
+    'stub',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag(
+        'all',
+        abbr: 'a',
+        negatable: false,
+        help: 'Stub custom methods for every feature',
       )
       ..addOption(
         'name',
@@ -289,7 +331,12 @@ Future<void> run(List<String> args) async {
         _printHelp(parser, const ['doctor']);
         return;
       }
-      await _doctor(root, logger, skipAnalyze: skipAnalyze);
+      await _doctor(
+        root,
+        logger,
+        skipAnalyze: skipAnalyze,
+        fix: command['fix'] == true,
+      );
     case 'presets':
       if (command['help'] == true) {
         _printHelp(parser, const ['presets']);
@@ -398,6 +445,41 @@ Future<void> run(List<String> args) async {
         overwrite: overwrite,
         dryRun: dryRun,
         skipAnalyze: skipAnalyze,
+      );
+    case 'crud':
+      if (command['help'] == true) {
+        _printHelp(parser, const ['crud']);
+        return;
+      }
+      final crudName = _resolveName(command);
+      if (crudName == null) {
+        _printHelp(parser, const ['crud']);
+        return;
+      }
+      try {
+        await FeatureCommand(
+          root: root,
+          logger: logger,
+          overwrite: overwrite,
+          dryRun: dryRun,
+          skipAnalyze: skipAnalyze,
+          crud: true,
+        ).add(crudName);
+      } catch (e, st) {
+        logger.error(e.toString());
+        if (logger.verbose) logger.detail(st.toString());
+        exitCode = 1;
+      }
+    case 'stub':
+      if (command['help'] == true) {
+        _printHelp(parser, const ['stub']);
+        return;
+      }
+      await _stubCustomMethods(
+        command,
+        root,
+        logger,
+        dryRun: dryRun,
       );
     case 'new':
       if (command['help'] == true) {
@@ -574,27 +656,60 @@ Future<void> _doctor(
   String root,
   Logger logger, {
   required bool skipAnalyze,
+  bool fix = false,
 }) async {
   try {
     final context = await ProjectContext.detect(root);
     final config = await _loadConfig(root, context.packageName);
 
-    logger.banner('stackchain doctor');
-    logger.info('Package: ${context.packageName}');
-    logger.info(
-      'Stack: ${config.architecture.yaml} / ${config.stateManagement.yaml} / '
-      '${config.routing.yaml} / ${config.di.yaml}',
-    );
-    if (config.preset != null) logger.info('Preset: ${config.preset}');
-    logger.info('Features: ${config.features.join(', ')}');
-
-    final gate = await QualityGate(
+    final report = await DoctorEngine(
       root: root,
       config: config,
       logger: logger,
-      runAnalyzer: !skipAnalyze,
+      fix: fix,
+      skipAnalyze: skipAnalyze,
     ).run();
-    if (!gate.passed) exitCode = 1;
+    if (!report.passed) exitCode = 1;
+  } catch (e, st) {
+    logger.error(e.toString());
+    if (logger.verbose) logger.detail(st.toString());
+    exitCode = 1;
+  }
+}
+
+Future<void> _stubCustomMethods(
+  ArgResults command,
+  String root,
+  Logger logger, {
+  required bool dryRun,
+}) async {
+  final all = command['all'] == true;
+  final name = _resolveName(command);
+  if (!all && name == null) {
+    stdout.writeln('''
+Usage: dart run stackchain stub <feature>
+       dart run stackchain stub --all
+
+Scan // <stackchain:custom> regions for methods and append failing
+placeholder tests to test/features/<feature>_custom_test.dart.
+''');
+    return;
+  }
+
+  try {
+    final context = await ProjectContext.detect(root);
+    final config = await _loadConfig(root, context.packageName);
+    final stubber = CustomMethodStubber(
+      root: root,
+      config: config,
+      logger: logger,
+      dryRun: dryRun,
+    );
+    if (all) {
+      await stubber.stubAll();
+    } else {
+      await stubber.stubFeature(name!);
+    }
   } catch (e, st) {
     logger.error(e.toString());
     if (logger.verbose) logger.detail(st.toString());
@@ -623,6 +738,7 @@ Options:
   --type, -t <list>   unit,widget,integration (default: all)
   --all, -a           Every feature in stackchain.yaml
   --overwrite, -f
+  --stub-custom       Stub custom methods (default: on; --no-stub-custom)
   --dry-run
   --skip-analyze
   --name, -n <name>
@@ -656,6 +772,24 @@ Examples:
         'Pass --overwrite to replace existing tests.',
       );
     }
+
+    final stubCustom = !command.options.contains('stub-custom') ||
+        command['stub-custom'] != false;
+    if (stubCustom && !dryRun) {
+      final context = await ProjectContext.detect(root);
+      final config = await _loadConfig(root, context.packageName);
+      final stubber = CustomMethodStubber(
+        root: root,
+        config: config,
+        logger: logger,
+      );
+      if (all) {
+        await stubber.stubAll();
+      } else if (name != null) {
+        await stubber.stubFeature(name);
+      }
+    }
+
     if (!report.quality.passed) exitCode = 1;
   } on FormatException catch (e) {
     logger.error(e.message);
@@ -856,7 +990,9 @@ Usage: dart run stackchain feature <name>
        dart run stackchain add <name>
 
 Add a vertical slice: feature files + router + DI + tests + quality gate.
-Recipes: auth, settings, profile get richer wiring.
+Recipes: auth, settings, profile, onboarding, notifications, search.
+
+For list/form CRUD extras: dart run stackchain crud <entity>
 
 Options:
   --overwrite, -f
@@ -866,6 +1002,7 @@ Options:
 
 Examples:
   dart run stackchain feature auth
+  dart run stackchain feature onboarding
   dart run stackchain add notifications
 ''');
     case 'remove':
@@ -932,6 +1069,8 @@ Options:
   --all, -a           Generate for every feature in stackchain.yaml
   --overwrite, -f     Replace/merge scaffold files (custom_test untouched;
                       unmarked customized files get a .stackchain.bak)
+  --stub-custom       Scan // <stackchain:custom> and stub *_custom_test.dart
+                      (default: on; pass --no-stub-custom to skip)
   --dry-run
   --skip-analyze
   --name, -n <name>   Alternative to positional name
@@ -940,6 +1079,7 @@ Examples:
   dart run stackchain test auth
   dart run stackchain test auth --type unit,widget
   dart run stackchain test auth --type integration --overwrite
+  dart run stackchain test auth --no-stub-custom
   dart run stackchain test --all
 ''');
     case 'sync':
@@ -999,11 +1139,44 @@ Examples:
       stdout.writeln('''
 Usage: dart run stackchain doctor [options]
 
-Run the quality gate (structure + security baseline + optional analyze)
-on the current project without generating files.
+Diagnose drift: missing markers, orphan routes, lockfile mismatch, and
+quality-gate issues. Suggests sync / test / migrate / upgrade.
 
 Options:
+  --fix              Sync router/DI + refresh .stackchain/lock.yaml
   --skip-analyze
+
+Examples:
+  dart run stackchain doctor
+  dart run stackchain doctor --fix
+''');
+    case 'crud':
+      stdout.writeln('''
+Usage: dart run stackchain crud <entity>
+
+Vertical slice + CRUD extras (list tile, form, form widget test).
+Same as feature, plus shippable list/create UI pieces.
+
+Options:
+  --overwrite, -f
+  --dry-run
+  --skip-analyze
+
+Examples:
+  dart run stackchain crud product
+  dart run stackchain crud order --overwrite
+''');
+    case 'stub':
+      stdout.writeln('''
+Usage: dart run stackchain stub <feature>
+       dart run stackchain stub --all
+
+Scan // <stackchain:custom> for public methods and append failing
+placeholder tests to test/features/<feature>_custom_test.dart.
+
+Examples:
+  dart run stackchain stub auth
+  dart run stackchain stub --all
 ''');
     case 'presets':
       stdout.writeln('''
@@ -1077,13 +1250,15 @@ Commands:
   init                  Scaffold project (replaces default counter main.dart)
   feature <name>        Vertical slice: files + router + DI + tests
   add <name>            Alias for feature
+  crud <entity>         Feature + list/form CRUD extras
   remove <name>         Remove a feature (files + yaml + router/DI)
   rename <from> <to>    Rename a feature end-to-end
   test <feature>        Generate unit / widget / integration tests
+  stub <feature>        Stub tests for // <stackchain:custom> methods
   sync                  Smart-merge router/DI managed regions
   upgrade               Refresh deps, sync, lockfile, quality gate
   migrate               Evolve stack (e.g. --state cubit --preset ...)
-  doctor                Run quality gate on the current project
+  doctor [--fix]       Diagnose drift; --fix syncs + refreshes lock
   presets               List production blueprints
   make <type> <name>    Generate feature | page | widget | service
   list                  List generators
@@ -1094,7 +1269,11 @@ Examples:
   dart run stackchain help migrate
   dart run stackchain init
   dart run stackchain feature auth
+  dart run stackchain feature onboarding
+  dart run stackchain crud product
   dart run stackchain test auth
+  dart run stackchain stub auth
+  dart run stackchain doctor --fix
   dart run stackchain rename profile account
   dart run stackchain remove auth
   dart run stackchain sync
