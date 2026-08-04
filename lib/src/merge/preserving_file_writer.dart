@@ -27,6 +27,10 @@ class PreservingFileWriter {
   ///
   /// [previousPath] — when the owned file moves (e.g. bloc → cubit), custom
   /// code is ported from that path into the new file's `custom` region.
+  ///
+  /// When [FileWriter.overwrite] is true (migrate / `feature --overwrite`),
+  /// marked files are fully rewritten with `custom` ported — required so
+  /// pages pick up a new state-management API (Bloc → Cubit, etc.).
   Future<void> writeOwned({
     required String relativePath,
     required String fullGenerated,
@@ -54,6 +58,32 @@ class PreservingFileWriter {
     }
 
     if (OwnedRegions.hasOwnedMarkers(existing)) {
+      final isLibSource = relativePath.startsWith('lib/');
+      final isTestScaffold = relativePath.startsWith('test/') ||
+          relativePath.startsWith('integration_test/');
+
+      final existingHasMergeable = OwnedRegions.mergeIds
+          .any((id) => RegionMerger.hasRegion(existing, id));
+      final generatedHasMergeable = OwnedRegions.mergeIds
+          .any((id) => RegionMerger.hasRegion(fullGenerated, id));
+
+      // Full rewrite (custom preserved) for lib/ when:
+      // - --overwrite / migrate presentation refresh, or
+      // - upgrading legacy custom-only pages that lack <stackchain:generated>.
+      // Test scaffolds always soft-merge so hand-written tests outside
+      // <stackchain:generated> survive refresh.
+      final forceRefresh = isLibSource &&
+          (writer.overwrite ||
+              (generatedHasMergeable && !existingHasMergeable));
+
+      if (forceRefresh) {
+        output = _applyCustom(fullGenerated, customBody);
+        merged.add(relativePath);
+        preserved.add(relativePath);
+        await writer.write(relativePath, output, force: true);
+        return;
+      }
+
       output = _merger.mergeGeneratedFile(
         existing: existing,
         fullGenerated: fullGenerated,
@@ -61,9 +91,6 @@ class PreservingFileWriter {
       );
       // Test scaffolds use *_custom_test.dart instead — never inject/keep
       // custom regions on scaffold files.
-      final isLibSource = relativePath.startsWith('lib/');
-      final isTestScaffold = relativePath.startsWith('test/') ||
-          relativePath.startsWith('integration_test/');
       if (isLibSource) {
         final currentCustom =
             RegionMerger.readRegion(output, OwnedRegions.custom);

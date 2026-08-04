@@ -129,7 +129,9 @@ GoRoute(path: AppRoutes.home, ...),
 // </stackchain:routes>
 ```
 
-`sync` / `feature` / `upgrade` / `migrate` only rewrite code **inside** those markers. Everything outside is yours.
+`sync` / `feature` / `upgrade` rewrite **only** those regions. Put extra methods in `// <stackchain:custom>` — they survive regenerate and migrate (including Bloc → Cubit).
+
+**Migrate note:** presentation pages are rewritten for the new state API (custom regions kept). App shell files (`bootstrap` / `main` / `app.dart`) are regenerated for the target stack — don't put business logic there. Router/DI hand-written code outside markers survives **state-only** migrates.
 
 ## What `init` generates
 

@@ -63,6 +63,7 @@ class QualityGate {
     _checkFeatures(report);
     await _checkManagedRegions(report);
     await _checkPubspec(report);
+    await _checkLocalization(report);
     await _checkSecurityBaseline(report);
     if (runAnalyzer) {
       await _maybeAnalyze(report);
@@ -174,6 +175,26 @@ class QualityGate {
     }
   }
 
+  Future<void> _checkLocalization(QualityReport report) async {
+    if (!config.modules.localization) return;
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!await pubspec.exists()) return;
+    final content = await pubspec.readAsString();
+    if (!RegExp(r'^\s*flutter_localizations:\s*$', multiLine: true)
+        .hasMatch(content)) {
+      report.errors.add(
+        'localization enabled but flutter_localizations SDK dependency '
+        'is missing — run `dart run stackchain upgrade`',
+      );
+    }
+    if (!content.contains(RegExp(r'generate:\s*true'))) {
+      report.warnings.add(
+        'localization enabled but flutter.generate is not true — '
+        'AppLocalizations may not generate',
+      );
+    }
+  }
+
   Future<void> _checkSecurityBaseline(QualityReport report) async {
     final session =
         File(p.join(root, 'lib/core/session/session_service.dart'));
@@ -263,13 +284,13 @@ class QualityGate {
       if (result.exitCode != 0) {
         final out = '${result.stdout}\n${result.stderr}'.trim();
         final snippet = out.length > 800 ? '${out.substring(0, 800)}…' : out;
-        if (strict) {
-          report.errors.add('dart analyze failed (strict):\n$snippet');
-        } else {
-          report.warnings.add(
-            'dart analyze reported issues (non-blocking):\n$snippet',
-          );
-        }
+        // Analyzer errors/warnings always fail the gate. `strict_quality` only
+        // adds --fatal-infos; it must not be required for real errors to block.
+        report.errors.add(
+          strict
+              ? 'dart analyze failed (strict):\n$snippet'
+              : 'dart analyze failed:\n$snippet',
+        );
       }
     } catch (e) {
       report.warnings.add('Could not run dart analyze: $e');

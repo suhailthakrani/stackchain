@@ -28,6 +28,10 @@ class SmartFileMerger {
 
   /// Writes [fullGenerated] only when the file does not exist; otherwise merges
   /// every known region present in [fullGenerated] into [existing].
+  ///
+  /// Also syncs imports: adds imports from [fullGenerated], and drops relative
+  /// state-layer imports (`../bloc/`, `../cubit/`, …) that are no longer present
+  /// in the generated file (so pages update cleanly on soft merge).
   String mergeGeneratedFile({
     required String? existing,
     required String fullGenerated,
@@ -39,6 +43,15 @@ class SmartFileMerger {
 
     var result = existing;
     final generatedImports = DartImportMerger.readImports(fullGenerated);
+    final existingImports = DartImportMerger.readImports(result);
+
+    // Drop stale relative presentation imports not in the new template.
+    final staleRelative = existingImports.where((uri) {
+      if (!uri.startsWith('../')) return false;
+      if (!_stateLayerImport.hasMatch(uri)) return false;
+      return !generatedImports.contains(uri);
+    });
+    result = DartImportMerger.removeImports(result, staleRelative);
     result = DartImportMerger.mergeImports(result, generatedImports);
 
     for (final id in regionIds) {
@@ -52,4 +65,8 @@ class SmartFileMerger {
     }
     return result;
   }
+
+  static final _stateLayerImport = RegExp(
+    r'^\.\./(bloc|cubit|providers|controllers|viewmodels)/',
+  );
 }

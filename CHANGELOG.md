@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1
+
+- **Fix migrate / `feature --overwrite`:** rewrite presentation pages for the new state API (Bloc → Cubit, etc.) while preserving `// <stackchain:custom>`
+- **Fix quality gate:** `dart analyze` errors/warnings always fail the gate (no longer “non-blocking”)
+- **Fix `production_riverpod` (and any `localization: true`):** add `flutter_localizations` SDK dep, enable `generate: true`, stop pinning conflicting `intl: ^0.19.0`
+- **Fix migrate shell:** state-only migrates no longer wipe router/DI files — `ProjectSync` updates markers and keeps hand-written code outside them
+- Page templates wrap UI in `// <stackchain:generated>` for safe soft-merge refreshes
+
 ## 1.3.0
 
 - Richer shippable recipes: deepen auth (form + widget test) and settings (preferences + persistence test); add onboarding, notifications, search

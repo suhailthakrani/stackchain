@@ -105,6 +105,18 @@ stackchain:
       expect(cubit, contains('// <stackchain:custom>'));
       expect(cubit, contains('Future<void> load()'));
       expect(await blocFile.exists(), isFalse);
+
+      final page = await File(
+        p.join(
+          temp.path,
+          'lib/features/auth/presentation/pages/auth_page.dart',
+        ),
+      ).readAsString();
+      expect(page, contains('AuthCubit'));
+      expect(page, contains('..load()'));
+      expect(page, isNot(contains('AuthBloc')));
+      expect(page, isNot(contains('AuthStarted')));
+      expect(page, contains('// <stackchain:custom>'));
     });
 
     test('custom_test.dart is never overwritten', () async {

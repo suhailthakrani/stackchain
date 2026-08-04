@@ -561,6 +561,7 @@ class ${pascal}Page extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // <stackchain:generated>
     return BlocProvider(
       create: (_) => ${pascal}Bloc()..add(const ${pascal}Started()),
       child: Scaffold(
@@ -597,6 +598,7 @@ ${navLinks.isEmpty ? '' : '''
         ),
       ),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>
@@ -617,6 +619,7 @@ class ${pascal}Page extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // <stackchain:generated>
     return BlocProvider(
       create: (_) => ${pascal}Cubit()..load(),
       child: Scaffold(
@@ -651,6 +654,7 @@ ${navLinks.isEmpty ? '' : '''
         ),
       ),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>
@@ -670,6 +674,7 @@ class ${pascal}Page extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // <stackchain:generated>
     final state = ref.watch(${feature}Provider);
     return Scaffold(
       appBar: AppBar(title: const Text('$pascal')),
@@ -684,6 +689,7 @@ class ${pascal}Page extends ConsumerWidget {
               ],
             ),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>
@@ -703,6 +709,7 @@ class ${pascal}Page extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // <stackchain:generated>
     return ChangeNotifierProvider(
       create: (_) => ${pascal}Provider()..load(),
       child: Scaffold(
@@ -722,6 +729,7 @@ class ${pascal}Page extends StatelessWidget {
         ),
       ),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>
@@ -759,6 +767,7 @@ class ${pascal}Page extends GetView<${pascal}Controller> {
 
   @override
   Widget build(BuildContext context) {
+    // <stackchain:generated>
     return Scaffold(
       appBar: AppBar(title: const Text('$pascal')),
       body: Obx(() {
@@ -780,6 +789,7 @@ ${navGetx.isEmpty ? '' : '''
         );
       }),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>
@@ -819,6 +829,7 @@ class _${pascal}PageState extends State<${pascal}Page> {
 
   @override
   Widget build(BuildContext context) {
+    // <stackchain:generated>
     return Scaffold(
       appBar: AppBar(title: const Text('$pascal')),
       body: StreamBuilder<${pascal}State>(
@@ -853,6 +864,7 @@ ${navLinks.isEmpty ? '' : '''
         },
       ),
     );
+    // </stackchain:generated>
   }
 
   // <stackchain:custom>

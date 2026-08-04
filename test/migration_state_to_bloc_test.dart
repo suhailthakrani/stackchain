@@ -107,6 +107,18 @@ stackchain:
             .exists(),
         isTrue,
       );
+
+      final homePage = await File(
+        p.join(
+          temp.path,
+          'lib/features/home/presentation/pages/home_page.dart',
+        ),
+      ).readAsString();
+      expect(homePage, contains('HomeBloc'));
+      expect(homePage, contains('BlocProvider'));
+      expect(homePage, isNot(contains('ConsumerWidget')));
+      expect(homePage, isNot(contains('homeProvider')));
+      expect(homePage, contains('// <stackchain:generated>'));
     });
 
     test('migrate --routing refreshes router shell', () async {

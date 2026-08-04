@@ -220,7 +220,12 @@ class MigrationEngine {
     );
   }
 
-  /// Bootstraps, mains, app widget, router seeds, and DI seed for the new stack.
+  /// Bootstraps, mains, app widget for the new stack.
+  ///
+  /// Router / DI seeds are refreshed only when routing or DI itself changes
+  /// (full template swap). State-only migrates leave those files to
+  /// [ProjectSync], which updates managed regions and preserves hand-written
+  /// code outside markers.
   Future<int> _refreshStackShell(
     StackchainConfig before,
     StackchainConfig after,
@@ -249,18 +254,20 @@ class MigrationEngine {
     }
 
     final routingChanged = before.routing != after.routing;
-    final stateChanged = before.stateManagement != after.stateManagement;
     final diChanged = before.di != after.di;
     final archChanged = before.architecture != after.architecture;
 
-    if (routingChanged || stateChanged || archChanged) {
+    // Full router rewrite only when the routing engine (or architecture) changes.
+    // State-only migrates rely on ProjectSync to refresh <stackchain:routes>.
+    if (routingChanged || archChanged) {
       for (final entry in RouterTemplates(after).generate().entries) {
         await writer.write(entry.key, entry.value);
         count++;
       }
     }
 
-    if (diChanged || stateChanged || archChanged) {
+    // Full DI seed rewrite only when DI type (or architecture) changes.
+    if (diChanged || archChanged) {
       final di = CoreTemplates(after).generate()['lib/core/di/injection.dart'];
       if (di != null) {
         await writer.write('lib/core/di/injection.dart', di);

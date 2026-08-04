@@ -35,4 +35,34 @@ flutter:
     expect(RegExp(r'^dependencies:', multiLine: true).allMatches(merged).length,
         1);
   });
+
+  test('localization adds flutter_localizations and drops stale intl pin', () {
+    const existing = '''
+name: demo
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+''';
+
+    final merged = PubspecMerger.merge(
+      existing: existing,
+      config: StackchainConfig(
+        packageName: 'demo',
+        modules: const ModulesConfig(localization: true),
+      ),
+    );
+
+    expect(merged, contains('flutter_localizations:'));
+    expect(merged, contains(RegExp(r'flutter_localizations:\s*\n\s+sdk: flutter')));
+    expect(merged, contains('generate: true'));
+    expect(merged, isNot(contains('intl:')));
+  });
 }

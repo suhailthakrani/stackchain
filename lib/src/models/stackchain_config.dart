@@ -31,7 +31,8 @@ class ModulesConfig {
   /// Generate GitHub Actions CI workflow.
   final bool ci;
 
-  /// Quality gate treats analyzer issues as errors.
+  /// Quality gate also fails analyzer infos when true (`--fatal-infos`).
+  /// Analyzer errors/warnings always fail the gate regardless.
   final bool strictQuality;
 
   factory ModulesConfig.fromMap(Map<dynamic, dynamic>? map) {
@@ -208,7 +209,8 @@ class StackchainConfig {
     }
 
     if (modules.localization) {
-      deps['intl'] = '^0.19.0';
+      // intl comes transitively via flutter_localizations — do not pin an
+      // older constraint that conflicts with the Flutter SDK.
     }
 
     return deps;
