@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+- **`api <spec>`** — generate models + API repositories from OpenAPI 3 schemas (`lib/core/api/`); re-run safe via `generated` / `custom` markers; remembers last spec in `.stackchain/openapi.yaml`
+- **DI cleanup** — `injection.dart` is documented, import-grouped, and sectioned (logging, storage, session, network, per-feature)
+- Widen Dart SDK constraint to `>=3.0.0 <4.0.0` so apps are not locked to a narrow SDK floor
+- Loosen `lints` to `>=3.0.0 <6.0.0` so older Dart SDKs can still resolve the package
+
 ## 1.3.1
 
 - **Fix migrate / `feature --overwrite`:** rewrite presentation pages for the new state API (Bloc → Cubit, etc.) while preserving `// <stackchain:custom>`

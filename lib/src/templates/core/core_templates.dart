@@ -319,42 +319,15 @@ abstract final class Helpers {
   Map<String, String> _di() {
     if (config.di == DiType.getx) {
       return {
-        'lib/core/di/injection.dart': '''
-import 'package:get/get.dart';
-import 'package:logger/logger.dart';
-
-import 'package:$pkg/core/errors/error_handler.dart';
-import 'package:$pkg/core/session/session_service.dart';
-${config.network == NetworkClient.dio ? "import 'package:$pkg/core/network/api_client.dart';\nimport 'package:$pkg/core/network/dio_client.dart';\n" : ''}${config.storage.contains(StorageType.secureStorage) ? "import 'package:$pkg/core/storage/secure_storage.dart';\n" : ''}${config.storage.contains(StorageType.sharedPreferences) ? "import 'package:$pkg/core/storage/shared_prefs.dart';\n" : ''}${config.modules.coreServices ? "import 'package:$pkg/core/services/connectivity_service.dart';\nimport 'package:$pkg/core/services/logger_service.dart';\n" : ''}
-Future<void> configureDependencies() async {
-  Get.put<Logger>(Logger(), permanent: true);
-  Get.put<ErrorHandler>(ErrorHandler(logger: Get.find()), permanent: true);
-${config.storage.contains(StorageType.sharedPreferences) ? '''  final prefs = await SharedPrefsService.create();
-  Get.put<SharedPrefsService>(prefs, permanent: true);
-''' : ''}${config.storage.contains(StorageType.secureStorage) ? '''  Get.put<SecureStorageService>(SecureStorageService(), permanent: true);
-''' : ''}  Get.put<SessionService>(
-    SessionService(
-${config.storage.contains(StorageType.secureStorage) ? '      secure: Get.find(),\n' : ''}${config.storage.contains(StorageType.sharedPreferences) ? '      prefs: Get.find(),\n' : ''}    ),
-    permanent: true,
-  );
-${config.network == NetworkClient.dio ? '''  Get.lazyPut<DioClient>(
-    () => DioClient(
-      tokenProvider: () => Get.find<SessionService>().accessToken,
-      onUnauthorized: () => Get.find<SessionService>().clear(),
-    ),
-    fenix: true,
-  );
-  Get.lazyPut<ApiClient>(() => ApiClient(Get.find()), fenix: true);
-''' : ''}${config.modules.coreServices ? '''  Get.lazyPut<ConnectivityService>(ConnectivityService.new, fenix: true);
-  Get.lazyPut<LoggerService>(() => LoggerService(Get.find()), fenix: true);
-''' : ''}}
-''',
+        'lib/core/di/injection.dart': _getxInjection(),
       };
     }
 
     if (config.di == DiType.injectable) {
       return {
         'lib/core/di/injection.dart': '''
+// Application dependency injection (injectable).
+// Run: dart run build_runner build --delete-conflicting-outputs
 import 'package:get_it/get_it.dart';
 import 'package:injectable/injectable.dart';
 
@@ -402,78 +375,207 @@ abstract class CoreModule {
 }
 ''';
 
-  String _getItInjection() {
-    final importSet = <String>{
-      "import 'package:get_it/get_it.dart';",
+  String _getxInjection() {
+    final packageImports = <String>{
+      "import 'package:get/get.dart';",
       "import 'package:logger/logger.dart';",
+    };
+    final coreImports = <String>{
       "import 'package:$pkg/core/errors/error_handler.dart';",
       "import 'package:$pkg/core/session/session_service.dart';",
     };
 
-    final regs = StringBuffer()
-      ..writeln('  getIt.registerLazySingleton<Logger>(Logger.new);')
+    final body = StringBuffer();
+
+    body
+      ..writeln('  // ── Logging & errors ───────────────────────────────────')
+      ..writeln('  Get.put<Logger>(Logger(), permanent: true);')
       ..writeln(
-        '  getIt.registerLazySingleton<ErrorHandler>('
-        '() => ErrorHandler(logger: getIt()));',
-      );
+        '  Get.put<ErrorHandler>('
+        'ErrorHandler(logger: Get.find()), permanent: true);',
+      )
+      ..writeln();
 
-    if (config.storage.contains(StorageType.sharedPreferences)) {
-      importSet.add(
-        "import 'package:$pkg/core/storage/shared_prefs.dart';",
-      );
-      regs.writeln(
-        '  final prefs = await SharedPrefsService.create();\n'
-        '  getIt.registerSingleton<SharedPrefsService>(prefs);',
-      );
+    final hasPrefs = config.storage.contains(StorageType.sharedPreferences);
+    final hasSecure = config.storage.contains(StorageType.secureStorage);
+    if (hasPrefs || hasSecure) {
+      body.writeln('  // ── Storage ─────────────────────────────────────────');
+      if (hasPrefs) {
+        coreImports.add("import 'package:$pkg/core/storage/shared_prefs.dart';");
+        body
+          ..writeln('  final prefs = await SharedPrefsService.create();')
+          ..writeln(
+            '  Get.put<SharedPrefsService>(prefs, permanent: true);',
+          );
+      }
+      if (hasSecure) {
+        coreImports
+            .add("import 'package:$pkg/core/storage/secure_storage.dart';");
+        body.writeln(
+          '  Get.put<SecureStorageService>('
+          'SecureStorageService(), permanent: true);',
+        );
+      }
+      body.writeln();
     }
 
-    if (config.storage.contains(StorageType.secureStorage)) {
-      importSet.add(
-        "import 'package:$pkg/core/storage/secure_storage.dart';",
-      );
-      regs.writeln(
-        '  getIt.registerLazySingleton<SecureStorageService>('
-        'SecureStorageService.new);',
-      );
-    }
-
-    final sessionArgs = <String>[
-      if (config.storage.contains(StorageType.secureStorage)) 'secure: getIt()',
-      if (config.storage.contains(StorageType.sharedPreferences))
-        'prefs: getIt()',
-    ];
-    regs.writeln(
-      '  getIt.registerLazySingleton<SessionService>('
-      '() => SessionService(${sessionArgs.join(', ')}));',
-    );
+    body
+      ..writeln('  // ── Session ──────────────────────────────────────────')
+      ..writeln('  Get.put<SessionService>(')
+      ..writeln('    SessionService(');
+    if (hasSecure) body.writeln('      secure: Get.find(),');
+    if (hasPrefs) body.writeln('      prefs: Get.find(),');
+    body
+      ..writeln('    ),')
+      ..writeln('    permanent: true,')
+      ..writeln('  );')
+      ..writeln();
 
     if (config.network == NetworkClient.dio) {
-      importSet
+      coreImports
         ..add("import 'package:$pkg/core/network/api_client.dart';")
         ..add("import 'package:$pkg/core/network/dio_client.dart';");
-      regs
+      body
+        ..writeln('  // ── Network ──────────────────────────────────────────')
+        ..writeln('  Get.lazyPut<DioClient>(')
+        ..writeln('    () => DioClient(')
         ..writeln(
-          '  getIt.registerLazySingleton<DioClient>('
-          '() => DioClient(\n'
-          '    tokenProvider: () => getIt<SessionService>().accessToken,\n'
-          '    onUnauthorized: () => getIt<SessionService>().clear(),\n'
-          '  ));',
+          '      tokenProvider: () => Get.find<SessionService>().accessToken,',
         )
         ..writeln(
-          '  getIt.registerLazySingleton<ApiClient>('
-          '() => ApiClient(getIt<DioClient>()));',
-        );
+          '      onUnauthorized: () => Get.find<SessionService>().clear(),',
+        )
+        ..writeln('    ),')
+        ..writeln('    fenix: true,')
+        ..writeln('  );')
+        ..writeln(
+          '  Get.lazyPut<ApiClient>(() => ApiClient(Get.find()), fenix: true);',
+        )
+        ..writeln();
     }
 
     if (config.modules.coreServices) {
-      importSet
+      coreImports
         ..add(
           "import 'package:$pkg/core/services/connectivity_service.dart';",
         )
         ..add(
           "import 'package:$pkg/core/services/logger_service.dart';",
         );
-      regs
+      body
+        ..writeln('  // ── Core services ────────────────────────────────────')
+        ..writeln(
+          '  Get.lazyPut<ConnectivityService>('
+          'ConnectivityService.new, fenix: true);',
+        )
+        ..writeln(
+          '  Get.lazyPut<LoggerService>('
+          '() => LoggerService(Get.find()), fenix: true);',
+        )
+        ..writeln();
+    }
+
+    return '''
+/// Application dependency injection (GetX).
+///
+/// Registers core services used across the app. Feature bindings live with
+/// each feature when using GetX routing.
+${_formatImports(packageImports, coreImports, const {})}
+Future<void> configureDependencies() async {
+${body.toString().trimRight()}
+}
+''';
+  }
+
+  String _getItInjection() {
+    final packageImports = <String>{
+      "import 'package:get_it/get_it.dart';",
+      "import 'package:logger/logger.dart';",
+    };
+    final coreImports = <String>{
+      "import 'package:$pkg/core/errors/error_handler.dart';",
+      "import 'package:$pkg/core/session/session_service.dart';",
+    };
+    final featureImports = <String>{};
+
+    final core = StringBuffer();
+    final features = StringBuffer();
+
+    core
+      ..writeln('  // ── Logging & errors ───────────────────────────────────')
+      ..writeln('  getIt.registerLazySingleton<Logger>(Logger.new);')
+      ..writeln(
+        '  getIt.registerLazySingleton<ErrorHandler>('
+        '() => ErrorHandler(logger: getIt()));',
+      )
+      ..writeln();
+
+    final hasPrefs = config.storage.contains(StorageType.sharedPreferences);
+    final hasSecure = config.storage.contains(StorageType.secureStorage);
+    if (hasPrefs || hasSecure) {
+      core.writeln('  // ── Storage ─────────────────────────────────────────');
+      if (hasPrefs) {
+        coreImports.add("import 'package:$pkg/core/storage/shared_prefs.dart';");
+        core
+          ..writeln('  final prefs = await SharedPrefsService.create();')
+          ..writeln('  getIt.registerSingleton<SharedPrefsService>(prefs);');
+      }
+      if (hasSecure) {
+        coreImports
+            .add("import 'package:$pkg/core/storage/secure_storage.dart';");
+        core.writeln(
+          '  getIt.registerLazySingleton<SecureStorageService>('
+          'SecureStorageService.new);',
+        );
+      }
+      core.writeln();
+    }
+
+    final sessionArgs = <String>[
+      if (hasSecure) 'secure: getIt()',
+      if (hasPrefs) 'prefs: getIt()',
+    ];
+    core
+      ..writeln('  // ── Session ──────────────────────────────────────────')
+      ..writeln(
+        '  getIt.registerLazySingleton<SessionService>('
+        '() => SessionService(${sessionArgs.join(', ')}));',
+      )
+      ..writeln();
+
+    if (config.network == NetworkClient.dio) {
+      coreImports
+        ..add("import 'package:$pkg/core/network/api_client.dart';")
+        ..add("import 'package:$pkg/core/network/dio_client.dart';");
+      core
+        ..writeln('  // ── Network ──────────────────────────────────────────')
+        ..writeln('  getIt.registerLazySingleton<DioClient>(')
+        ..writeln('    () => DioClient(')
+        ..writeln(
+          '      tokenProvider: () => getIt<SessionService>().accessToken,',
+        )
+        ..writeln(
+          '      onUnauthorized: () => getIt<SessionService>().clear(),',
+        )
+        ..writeln('    ),')
+        ..writeln('  );')
+        ..writeln(
+          '  getIt.registerLazySingleton<ApiClient>('
+          '() => ApiClient(getIt<DioClient>()));',
+        )
+        ..writeln();
+    }
+
+    if (config.modules.coreServices) {
+      coreImports
+        ..add(
+          "import 'package:$pkg/core/services/connectivity_service.dart';",
+        )
+        ..add(
+          "import 'package:$pkg/core/services/logger_service.dart';",
+        );
+      core
+        ..writeln('  // ── Core services ────────────────────────────────────')
         ..writeln(
           '  getIt.registerLazySingleton<ConnectivityService>('
           'ConnectivityService.new);',
@@ -481,13 +583,14 @@ abstract class CoreModule {
         ..writeln(
           '  getIt.registerLazySingleton<LoggerService>('
           '() => LoggerService(getIt()));',
-        );
+        )
+        ..writeln();
     }
 
-    for (final f in config.features) {
-      if (_layeredArch) {
+    if (_layeredArch) {
+      for (final f in config.features) {
         final pascal = _pascal(f);
-        importSet
+        featureImports
           ..add(
             "import 'package:$pkg/features/$f/data/datasources/${f}_remote_datasource.dart';",
           )
@@ -500,7 +603,9 @@ abstract class CoreModule {
           ..add(
             "import 'package:$pkg/features/$f/domain/usecases/get_$f.dart';",
           );
-        regs
+
+        features
+          ..writeln('  // ── $f ─────────────────────────────────────────────')
           ..writeln(
             '  getIt.registerLazySingleton<${pascal}RemoteDataSource>('
             '${pascal}RemoteDataSourceImpl.new);',
@@ -513,67 +618,82 @@ abstract class CoreModule {
             '  getIt.registerLazySingleton<Get$pascal>('
             '() => Get$pascal(getIt()));',
           );
+
         if (config.stateManagement == StateManagement.bloc) {
-          importSet.add(
+          featureImports.add(
             "import 'package:$pkg/features/$f/presentation/bloc/${f}_bloc.dart';",
           );
-          regs.writeln(
+          features.writeln(
             '  getIt.registerFactory<${pascal}Bloc>(${pascal}Bloc.new);',
           );
         } else if (config.stateManagement == StateManagement.cubit) {
-          importSet.add(
+          featureImports.add(
             "import 'package:$pkg/features/$f/presentation/cubit/${f}_cubit.dart';",
           );
-          regs.writeln(
+          features.writeln(
             '  getIt.registerFactory<${pascal}Cubit>(${pascal}Cubit.new);',
           );
         } else if (config.stateManagement == StateManagement.rxdart) {
-          importSet.add(
+          featureImports.add(
             "import 'package:$pkg/features/$f/presentation/controllers/${f}_controller.dart';",
           );
-          regs.writeln(
+          features.writeln(
             '  getIt.registerFactory<${pascal}Controller>('
             '${pascal}Controller.new);',
           );
         }
+        features.writeln();
       }
     }
-
-    // Split core vs feature registrations for smart sync merges.
-    final coreRegs = StringBuffer();
-    final featureRegs = StringBuffer();
-    for (final line in regs.toString().split('\n')) {
-      if (line.trim().isEmpty) continue;
-      final isFeature = config.features.any((f) {
-        final pascal = _pascal(f);
-        return line.contains('${pascal}Bloc') ||
-            line.contains('${pascal}Cubit') ||
-            line.contains('${pascal}Controller') ||
-            line.contains('${pascal}RemoteDataSource') ||
-            line.contains('${pascal}Repository') ||
-            line.contains('Get$pascal');
-      });
-      if (isFeature) {
-        featureRegs.writeln(line);
-      } else {
-        coreRegs.writeln(line);
-      }
-    }
-
-    final imports = (importSet.toList()..sort()).join('\n');
 
     return '''
-$imports
-
+${_diFileDoc(diName: 'GetIt')}
+${_formatImports(packageImports, coreImports, featureImports)}
 final getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
   // <stackchain:core>
-$coreRegs  // </stackchain:core>
+${core.toString().trimRight()}
+  // </stackchain:core>
+
   // <stackchain:features>
-$featureRegs  // </stackchain:features>
+${features.toString().trimRight()}
+  // </stackchain:features>
 }
 ''';
+  }
+
+  String _diFileDoc({required String diName}) => '''
+// Application dependency injection ($diName).
+//
+// Owned by stackchain:
+// - // <stackchain:core> — logging, storage, session, network, services
+// - // <stackchain:features> — per-feature data + presentation bindings
+//
+// Re-run `dart run stackchain sync` after adding/removing features.
+// Put hand-written registrations outside those markers.
+''';
+
+  String _formatImports(
+    Set<String> packageImports,
+    Set<String> coreImports,
+    Set<String> featureImports,
+  ) {
+    final buf = StringBuffer();
+    void writeGroup(Iterable<String> lines) {
+      final sorted = lines.toList()..sort();
+      if (sorted.isEmpty) return;
+      if (buf.isNotEmpty) buf.writeln();
+      for (final line in sorted) {
+        buf.writeln(line);
+      }
+    }
+
+    writeGroup(packageImports);
+    writeGroup(coreImports);
+    writeGroup(featureImports);
+    buf.writeln();
+    return buf.toString();
   }
 
   bool get _layeredArch =>

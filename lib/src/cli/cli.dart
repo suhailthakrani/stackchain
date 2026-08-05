@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
+import '../api/openapi_generator.dart';
 import '../bricks/brick_engine.dart';
 import '../generators/project_generator.dart';
 import '../migrate/migration_engine.dart';
@@ -230,6 +231,19 @@ Future<void> run(List<String> args) async {
         'name',
         abbr: 'n',
         help: 'Feature name (or pass as positional).',
+      ),
+  );
+  parser.addCommand(
+    'api',
+    ArgParser()
+      ..addFlag('help', abbr: 'h', negatable: false)
+      ..addFlag('overwrite', abbr: 'f', negatable: false)
+      ..addFlag('dry-run', negatable: false)
+      ..addFlag('skip-analyze', negatable: false)
+      ..addOption(
+        'spec',
+        abbr: 's',
+        help: 'OpenAPI YAML/JSON path (or pass as positional).',
       ),
   );
   parser.addCommand(
@@ -481,6 +495,19 @@ Future<void> run(List<String> args) async {
         logger,
         dryRun: dryRun,
       );
+    case 'api':
+      if (command['help'] == true) {
+        _printHelp(parser, const ['api']);
+        return;
+      }
+      await _generateFromOpenApi(
+        command,
+        root,
+        logger,
+        overwrite: overwrite,
+        dryRun: dryRun,
+        skipAnalyze: skipAnalyze,
+      );
     case 'new':
       if (command['help'] == true) {
         _printHelp(parser, const ['new']);
@@ -710,6 +737,38 @@ placeholder tests to test/features/<feature>_custom_test.dart.
     } else {
       await stubber.stubFeature(name!);
     }
+  } catch (e, st) {
+    logger.error(e.toString());
+    if (logger.verbose) logger.detail(st.toString());
+    exitCode = 1;
+  }
+}
+
+Future<void> _generateFromOpenApi(
+  ArgResults command,
+  String root,
+  Logger logger, {
+  required bool overwrite,
+  required bool dryRun,
+  required bool skipAnalyze,
+}) async {
+  final spec = (command['spec'] as String?)?.trim();
+  final positional =
+      command.rest.isNotEmpty ? command.rest.first.trim() : null;
+  final path = (spec != null && spec.isNotEmpty) ? spec : positional;
+
+  try {
+    final context = await ProjectContext.detect(root);
+    final config = await _loadConfig(root, context.packageName);
+    final report = await OpenApiGenerator(
+      root: root,
+      config: config,
+      logger: logger,
+      overwrite: overwrite,
+      dryRun: dryRun,
+      skipAnalyze: skipAnalyze,
+    ).run(specPath: path);
+    if (!report.passed) exitCode = 1;
   } catch (e, st) {
     logger.error(e.toString());
     if (logger.verbose) logger.detail(st.toString());
@@ -1178,6 +1237,24 @@ Examples:
   dart run stackchain stub auth
   dart run stackchain stub --all
 ''');
+    case 'api':
+      stdout.writeln('''
+Usage: dart run stackchain api <openapi.yaml|json>
+       dart run stackchain api
+
+Generate models + API repositories from OpenAPI 3 schemas into
+lib/core/api/. Re-run after the backend changes — custom regions stay.
+
+Options:
+  --spec, -s <path>
+  --overwrite, -f
+  --dry-run
+  --skip-analyze
+
+Examples:
+  dart run stackchain api openapi.yaml
+  dart run stackchain api          # refresh from last spec
+''');
     case 'presets':
       stdout.writeln('''
 Usage: dart run stackchain presets
@@ -1255,6 +1332,7 @@ Commands:
   rename <from> <to>    Rename a feature end-to-end
   test <feature>        Generate unit / widget / integration tests
   stub <feature>        Stub tests for // <stackchain:custom> methods
+  api <spec>            Generate models + repos from OpenAPI (re-run safe)
   sync                  Smart-merge router/DI managed regions
   upgrade               Refresh deps, sync, lockfile, quality gate
   migrate               Evolve stack (e.g. --state cubit --preset ...)
@@ -1271,6 +1349,7 @@ Examples:
   dart run stackchain feature auth
   dart run stackchain feature onboarding
   dart run stackchain crud product
+  dart run stackchain api openapi.yaml
   dart run stackchain test auth
   dart run stackchain stub auth
   dart run stackchain doctor --fix
