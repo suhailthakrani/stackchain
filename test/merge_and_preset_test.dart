@@ -36,6 +36,27 @@ class A {
       expect(RegionMerger.hasRegion(next, 'routes'), isTrue);
       expect(next, contains('x();'));
     });
+
+    test('ignores marker-like text inside doc comments', () {
+      const source = '''
+// Owned by stackchain:
+// - // <stackchain:core> — do not match this
+Future<void> configureDependencies() async {
+  // <stackchain:core>
+  real();
+  // </stackchain:core>
+}
+''';
+      expect(RegionMerger.readRegion(source, 'core')?.trim(), 'real();');
+      final next = RegionMerger.replaceRegion(
+        source: source,
+        id: 'core',
+        body: '  replaced();\n',
+      );
+      expect(next, contains('// - // <stackchain:core> — do not match this'));
+      expect(next, contains('replaced();'));
+      expect(next, isNot(contains('real();')));
+    });
   });
 
   group('DartImportMerger', () {

@@ -39,6 +39,10 @@ class OpenApiGenerator {
   /// Generates from [specPath], or last path stored under [.stackchain/openapi.yaml].
   Future<QualityReport> run({String? specPath}) async {
     logger.banner('stackchain api');
+    logger.warn(
+      'MVP limits: components.schemas only → DTO + stub repos; '
+      'paths guessed as /{schema}; no DI registration',
+    );
 
     final resolved = specPath ?? await _readLastSpec();
     if (resolved == null) {

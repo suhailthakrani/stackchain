@@ -21,6 +21,7 @@ import '../utils/file_writer.dart';
 import '../utils/logger.dart';
 import '../utils/pubspec_merger.dart';
 import '../version.dart';
+import 'app_shell_safety.dart';
 import 'stack_lock.dart';
 
 /// Intentional stack evolution (e.g. bloc → cubit, go_router stays).
@@ -32,6 +33,7 @@ class MigrationEngine {
     this.overwritePresentation = true,
     this.skipAnalyze = false,
     this.cleanup = true,
+    this.forceShell = false,
     this.packageVersion = stackchainPackageVersion,
   }) : logger = logger ?? Logger();
 
@@ -44,6 +46,10 @@ class MigrationEngine {
   /// Delete files and packages the previous stack needed and the new one
   /// does not. Disable with `--keep-old` to review leftovers manually.
   final bool cleanup;
+
+  /// Clobber customized bootstrap/main/app even when they differ from
+  /// stock stackchain templates. Prefer moving logic out of the shell.
+  final bool forceShell;
   final String packageVersion;
 
   /// Applies [patch] onto stackchain.yaml + regenerates stack shell + sync.
@@ -59,6 +65,25 @@ class MigrationEngine {
       '${after.stateManagement.yaml}/${after.routing.yaml}/${after.di.yaml}',
     );
 
+    // Refuse customized shells before mutating yaml / files.
+    final blocked = await AppShellSafety.blockedPaths(
+      root: root,
+      before: before,
+      after: after,
+      forceShell: forceShell,
+    );
+    if (blocked.isNotEmpty) {
+      final message = AppShellSafety.refuseMessage(blocked);
+      logger.error(message);
+      throw StateError(message);
+    }
+    if (forceShell) {
+      logger.warn(
+        'Forcing app shell overwrite (--force-shell) — '
+        'custom bootstrap/main/app changes will be lost',
+      );
+    }
+
     if (!dryRun) {
       await _rewriteYaml(after);
       logger.success('Updated stackchain.yaml');
@@ -72,7 +97,7 @@ class MigrationEngine {
     );
     final preserving = PreservingFileWriter(writer: writer, logger: logger);
 
-    // App shell always follows the target stack (bootstrap ProviderScope, etc.).
+    // App shell follows the target stack when still virgin (or --force-shell).
     final shellCount = await _refreshStackShell(before, after, writer);
     if (shellCount > 0) {
       logger.success(
@@ -222,6 +247,10 @@ class MigrationEngine {
 
   /// Bootstraps, mains, app widget for the new stack.
   ///
+  /// Only writes when the on-disk file is still a virgin stackchain shell
+  /// (matches before or after template) or [forceShell] was set. Customized
+  /// shells are refused earlier in [run].
+  ///
   /// Router / DI seeds are refreshed only when routing or DI itself changes
   /// (full template swap). State-only migrates leave those files to
   /// [ProjectSync], which updates managed regions and preserves hand-written
@@ -232,23 +261,33 @@ class MigrationEngine {
     FileWriter writer,
   ) async {
     var count = 0;
+    final beforeFiles = AppTemplates(before).generate();
     final appFiles = AppTemplates(after).generate();
 
-    for (final path in const [
-      'lib/bootstrap.dart',
-      'lib/main.dart',
-      'lib/app/app.dart',
-      'lib/main_dev.dart',
-      'lib/main_staging.dart',
-      'lib/main_prod.dart',
-    ]) {
+    for (final path in appShellPaths) {
       final next = appFiles[path];
       if (next == null) continue;
       final file = File(p.join(root, path));
-      final isRequired = path == 'lib/bootstrap.dart' ||
-          path == 'lib/main.dart' ||
-          path == 'lib/app/app.dart';
+      final isRequired = requiredAppShellPaths.contains(path);
       if (!isRequired && !await file.exists()) continue;
+
+      if (await file.exists() && !forceShell) {
+        final existing = await file.readAsString();
+        if (!AppShellSafety.isVirginShell(
+          relativePath: path,
+          existing: existing,
+          beforeTemplate: beforeFiles[path],
+          afterTemplate: next,
+        )) {
+          // Should have been caught by the preflight check.
+          continue;
+        }
+        if (AppShellSafety.normalize(existing) ==
+            AppShellSafety.normalize(next)) {
+          continue; // already target shell
+        }
+      }
+
       await writer.write(path, next);
       count++;
     }

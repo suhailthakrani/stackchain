@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1
+
+- **App shell safety** — `migrate` refuses to overwrite customized `bootstrap` / `main` / `app.dart` (stock shells still swap); use `--force-shell` to clobber
+- **Marker integrity** — `doctor` fails when managed region bodies (`routes`, `core`, `features`, `handlers`, `generated`) were hand-edited
+- **CI** — generated workflow runs `dart run stackchain doctor --skip-analyze`
+- **Honest `api` docs** — README + CLI state MVP limits: schemas → DTO + stub repos, guessed paths, no DI wiring
+- **Fix** — `RegionMerger` only matches markers that sit alone on a line (doc comments mentioning `<stackchain:…>` no longer corrupt DI sync)
+
 ## 1.4.0
 
 - **`api <spec>`** — generate models + API repositories from OpenAPI 3 schemas (`lib/core/api/`); re-run safe via `generated` / `custom` markers; remembers last spec in `.stackchain/openapi.yaml`

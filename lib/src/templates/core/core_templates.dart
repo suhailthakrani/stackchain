@@ -667,8 +667,8 @@ ${features.toString().trimRight()}
 // Application dependency injection ($diName).
 //
 // Owned by stackchain:
-// - // <stackchain:core> — logging, storage, session, network, services
-// - // <stackchain:features> — per-feature data + presentation bindings
+// - <stackchain:core> — logging, storage, session, network, services
+// - <stackchain:features> — per-feature data + presentation bindings
 //
 // Re-run `dart run stackchain sync` after adding/removing features.
 // Put hand-written registrations outside those markers.

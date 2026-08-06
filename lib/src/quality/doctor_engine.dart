@@ -12,6 +12,7 @@ import '../sync/project_sync.dart';
 import '../utils/logger.dart';
 import '../utils/stack_paths.dart';
 import '../version.dart';
+import 'marker_integrity.dart';
 import 'quality_gate.dart';
 
 /// Extended diagnostics + optional auto-repair for `stackchain doctor`.
@@ -88,7 +89,51 @@ class DoctorEngine {
   Future<void> _diagnose(QualityReport report) async {
     await _checkLock(report);
     await _checkFeatureMarkers(report);
+    await _checkManagedRegionIntegrity(report);
     await _checkOrphans(report);
+  }
+
+  /// Fails when managed marker bodies were hand-edited.
+  Future<void> _checkManagedRegionIntegrity(QualityReport report) async {
+    final violations = await MarkerIntegrity(
+      root: root,
+      config: config,
+    ).check();
+    if (violations.isEmpty) return;
+
+    report.errors.addAll(violations);
+
+    final touchedRouterDi = violations.any(
+      (v) =>
+          v.contains('app_routes.dart') ||
+          v.contains('app_router.dart') ||
+          v.contains('injection.dart'),
+    );
+    final presentation = violations
+        .where(
+          (v) =>
+              v.contains('/features/') ||
+              v.contains('presentation') ||
+              v.contains('_page.dart') ||
+              v.contains('_bloc.dart') ||
+              v.contains('_cubit.dart'),
+        )
+        .toList();
+
+    if (touchedRouterDi) {
+      suggestions.add(
+        'dart run stackchain sync  # or doctor --fix — restores router/DI',
+      );
+    }
+    for (final feature in config.features) {
+      if (presentation.any((v) => v.contains('/$feature/') ||
+          v.contains('${feature}_'))) {
+        suggestions.add(
+          'dart run stackchain feature $feature --overwrite  '
+          '# restores managed regions (*.stackchain.bak backup)',
+        );
+      }
+    }
   }
 
   Future<void> _checkLock(QualityReport report) async {

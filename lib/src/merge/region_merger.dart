@@ -9,14 +9,17 @@
 ///
 /// Hand-written code outside markers is preserved. Content inside is replaced
 /// on sync / upgrade / feature add.
+///
+/// Markers must be the only content on their line (leading whitespace ok).
+/// Mentions inside doc comments like `// - // <stackchain:core> …` are ignored.
 class RegionMerger {
   static const openPrefix = '// <stackchain:';
   static const closePrefix = '// </stackchain:';
 
   /// Returns true if [source] already has a managed region [id].
   static bool hasRegion(String source, String id) {
-    return source.contains('$openPrefix$id>') &&
-        source.contains('$closePrefix$id>');
+    return _markerIndex(source, '$openPrefix$id>') >= 0 &&
+        _markerIndex(source, '$closePrefix$id>') >= 0;
   }
 
   /// Replaces the body of region [id], or appends a new region at [fallbackAnchor]
@@ -31,8 +34,8 @@ class RegionMerger {
     final close = '$closePrefix$id>';
     final normalizedBody = _normalizeBody(body);
 
-    final openIndex = source.indexOf(open);
-    final closeIndex = source.indexOf(close);
+    final openIndex = _markerIndex(source, open);
+    final closeIndex = _markerIndex(source, close);
 
     if (openIndex >= 0 && closeIndex > openIndex) {
       final before = source.substring(0, openIndex + open.length);
@@ -84,8 +87,8 @@ class RegionMerger {
   static String? readRegion(String source, String id) {
     final open = '$openPrefix$id>';
     final close = '$closePrefix$id>';
-    final openIndex = source.indexOf(open);
-    final closeIndex = source.indexOf(close);
+    final openIndex = _markerIndex(source, open);
+    final closeIndex = _markerIndex(source, close);
     if (openIndex < 0 || closeIndex <= openIndex) return null;
     var body = source.substring(openIndex + open.length, closeIndex);
     // Drop the newline immediately after the open marker only — keep indent.
@@ -100,6 +103,20 @@ class RegionMerger {
       body = body.substring(0, body.length - 1);
     }
     return body;
+  }
+
+  /// Index of a marker that sits alone on its line (optional leading indent).
+  static int _markerIndex(String source, String marker) {
+    final re = RegExp(
+      '^\\s*${RegExp.escape(marker)}\\s*\$',
+      multiLine: true,
+    );
+    final match = re.firstMatch(source);
+    if (match == null) return -1;
+    // Prefer the start of the marker token itself (after indent).
+    final line = match.group(0)!;
+    final indent = line.indexOf(marker);
+    return match.start + (indent < 0 ? 0 : indent);
   }
 
   static String _normalizeBody(String body) {

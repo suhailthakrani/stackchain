@@ -117,7 +117,24 @@ dart run stackchain presets
 dart run stackchain make page onboarding
 dart run stackchain make widget app_chip
 dart run stackchain make service analytics
+
+# OpenAPI → DTO stubs (MVP — see limits below)
+dart run stackchain api openapi.yaml
+dart run stackchain api          # refresh from last spec
 ```
+
+## `api` — what it actually does
+
+Honest MVP, not a full client generator:
+
+| Does | Does not |
+| --- | --- |
+| Parse OpenAPI 3 **`components.schemas`** | Read `paths` / operations |
+| Emit `*Model` + `*ApiRepository` under `lib/core/api/` | Wire into GetIt / injectable |
+| Guess HTTP path as `/{schema_snake}` | Derive paths from the spec |
+| Preserve `// <stackchain:custom>` on re-run | Replace your domain layer |
+
+Register stubs yourself (one line in DI outside markers). Re-run after the backend schema changes.
 
 ## Your code is safe
 
@@ -131,7 +148,9 @@ GoRoute(path: AppRoutes.home, ...),
 
 `sync` / `feature` / `upgrade` rewrite **only** those regions. Put extra methods in `// <stackchain:custom>` — they survive regenerate and migrate (including Bloc → Cubit).
 
-**Migrate note:** presentation pages are rewritten for the new state API (custom regions kept). App shell files (`bootstrap` / `main` / `app.dart`) are regenerated for the target stack — don't put business logic there. Router/DI hand-written code outside markers survives **state-only** migrates.
+**Doctor** fails when managed region bodies were hand-edited (`routes`, `core`, `features`, `handlers`, `generated`). Fix with `sync` / `doctor --fix` (router/DI) or `feature <name> --overwrite` (presentation). Generated CI runs `doctor --skip-analyze`.
+
+**Migrate / app shell:** stock `bootstrap` / `main` / `app.dart` swap to the target stack. **Customized shells are refused** — move business logic out of the shell (or pass `--force-shell`). Router/DI hand-written code outside markers survives **state-only** migrates.
 
 ## What `init` generates
 

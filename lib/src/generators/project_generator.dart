@@ -125,7 +125,7 @@ class ProjectGenerator {
     final mainFile = File(p.join(root, 'lib/main.dart'));
     if (!await mainFile.exists()) return true;
     final content = await mainFile.readAsString();
-    if (_isStockFlutterCounterMain(content)) {
+    if (ProjectGenerator.isStockFlutterCounterMain(content)) {
       logger.step('Replacing Flutter default counter main.dart');
       return true;
     }
@@ -145,7 +145,7 @@ class ProjectGenerator {
   }
 
   /// Detects Flutter create templates (counter or minimal MyApp).
-  static bool _isStockFlutterCounterMain(String content) {
+  static bool isStockFlutterCounterMain(String content) {
     if (content.contains('bootstrap()') ||
         (content.contains('configureDependencies') &&
             content.contains('/app/app.dart'))) {

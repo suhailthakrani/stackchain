@@ -149,6 +149,7 @@ jobs:
       - run: flutter pub get
       - run: dart format --set-exit-if-changed .
       - run: flutter analyze --fatal-infos
+      - run: dart run stackchain doctor --skip-analyze
       - run: flutter test
 ''';
 }

@@ -84,6 +84,12 @@ Future<void> run(List<String> args) async {
         negatable: false,
         help: 'Keep files/packages the previous stack needed',
       )
+      ..addFlag(
+        'force-shell',
+        negatable: false,
+        help:
+            'Overwrite customized bootstrap/main/app.dart (default: refuse)',
+      )
       ..addOption('architecture', help: 'Target architecture')
       ..addOption('state', help: 'Target state_management')
       ..addOption('routing', help: 'Target routing')
@@ -669,6 +675,7 @@ Future<void> _migrate(
       dryRun: dryRun,
       skipAnalyze: skipAnalyze,
       cleanup: command['keep-old'] != true,
+      forceShell: command['force-shell'] == true,
       packageVersion: stackchainPackageVersion,
     ).run(patch);
     if (!report.quality.passed) exitCode = 1;
@@ -1168,10 +1175,15 @@ Options:
 Usage: dart run stackchain migrate [options]
 
 Evolve the stack intentionally (state, routing, DI, architecture, or preset).
-Refreshes bootstrap/app/router/DI, regenerates presentation (and full feature
-tree on architecture change), refreshes feature tests, drops obsolete packages,
+Refreshes bootstrap/app when still a stock stackchain shell (or with
+--force-shell), regenerates presentation (and full feature tree on
+architecture change), refreshes feature tests, drops obsolete packages,
 syncs managed regions, and runs the quality gate.
 Domain/data layers are preserved unless architecture itself changes.
+
+App shell safety: customized lib/bootstrap.dart, lib/main.dart, and
+lib/app/app.dart are NOT overwritten. Move business logic out of the shell,
+or pass --force-shell to clobber them.
 
 Presentation/state files use // <stackchain:custom> regions — your methods
 there are preserved and ported across state changes (e.g. Bloc → Cubit).
@@ -1185,6 +1197,7 @@ Options:
   --network dio|http
   --preset production_bloc|production_riverpod|production_rxdart|...
   --keep-old          Leave old generated files and packages in place
+  --force-shell       Overwrite customized bootstrap/main/app.dart
   --dry-run
   --skip-analyze
 
@@ -1198,8 +1211,15 @@ Examples:
       stdout.writeln('''
 Usage: dart run stackchain doctor [options]
 
-Diagnose drift: missing markers, orphan routes, lockfile mismatch, and
-quality-gate issues. Suggests sync / test / migrate / upgrade.
+Diagnose drift: missing markers, hand-edited managed regions, orphan routes,
+lockfile mismatch, and quality-gate issues. Suggests sync / test / migrate /
+upgrade.
+
+Managed-region integrity: doctor fails when bodies inside
+// <stackchain:routes|core|features|handlers|generated> were hand-edited.
+Put custom code in // <stackchain:custom> or outside markers.
+Use --fix to restore router/DI regions; for presentation drift use
+feature <name> --overwrite.
 
 Options:
   --fix              Sync router/DI + refresh .stackchain/lock.yaml
@@ -1208,6 +1228,7 @@ Options:
 Examples:
   dart run stackchain doctor
   dart run stackchain doctor --fix
+  dart run stackchain doctor --skip-analyze   # CI-friendly
 ''');
     case 'crud':
       stdout.writeln('''
@@ -1242,8 +1263,13 @@ Examples:
 Usage: dart run stackchain api <openapi.yaml|json>
        dart run stackchain api
 
-Generate models + API repositories from OpenAPI 3 schemas into
-lib/core/api/. Re-run after the backend changes — custom regions stay.
+MVP — honest limits:
+  • Parses OpenAPI 3 components.schemas only (not paths / operations)
+  • Emits *Model + *ApiRepository stubs under lib/core/api/
+  • HTTP paths are guessed as /{schema_snake} — not from the spec
+  • Does NOT register into GetIt/injectable — add one-line DI yourself
+  • Re-run safe: generated regions refresh; custom regions stay
+  • Remembers last spec path in .stackchain/openapi.yaml
 
 Options:
   --spec, -s <path>
@@ -1332,11 +1358,11 @@ Commands:
   rename <from> <to>    Rename a feature end-to-end
   test <feature>        Generate unit / widget / integration tests
   stub <feature>        Stub tests for // <stackchain:custom> methods
-  api <spec>            Generate models + repos from OpenAPI (re-run safe)
+  api <spec>            Schemas → DTO + stub repos (paths guessed; no DI wire)
   sync                  Smart-merge router/DI managed regions
   upgrade               Refresh deps, sync, lockfile, quality gate
-  migrate               Evolve stack (e.g. --state cubit --preset ...)
-  doctor [--fix]       Diagnose drift; --fix syncs + refreshes lock
+  migrate               Evolve stack (refuses customized app shell)
+  doctor [--fix]       Marker integrity + drift; --fix syncs + lock
   presets               List production blueprints
   make <type> <name>    Generate feature | page | widget | service
   list                  List generators

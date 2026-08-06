@@ -31,6 +31,10 @@ stackchain:
           contains('String.fromEnvironment'));
       expect(files.keys, contains('lib/main_prod.dart'));
       expect(files.keys, contains('.github/workflows/stackchain_ci.yml'));
+      expect(
+        files['.github/workflows/stackchain_ci.yml'],
+        contains('dart run stackchain doctor --skip-analyze'),
+      );
       expect(files['lib/core/session/session_service.dart'],
           contains('saveSession'));
       expect(files['lib/core/network/dio_client.dart'],
